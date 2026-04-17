@@ -4,6 +4,11 @@
 
 🔴[NOT YET LIVE!](https://updatelater.com)
 
+# TEASER
+
+<img width="1920" height="916" alt="image" src="https://github.com/user-attachments/assets/6e5a034d-7654-49eb-bf56-543c89d1deeb" />
+
+
 ## What This Site Is
 
 PokoBuild3D is a place for Pokopia players to share builds, pictures, real life creations, and visual guides in one spot. It is made to be simple to browse, simple to search, and easy to post in.
