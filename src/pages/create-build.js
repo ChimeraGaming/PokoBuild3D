@@ -261,8 +261,17 @@ function renderLocationOptions(selectedValue) {
 
 function buildGalleryEntries(urls, assetKind) {
   var config = IMAGE_POST_CONFIG[assetKind]
+  var uniqueUrls = []
 
-  return urls.map(function (url, index) {
+  ;(urls || []).forEach(function (url) {
+    var normalizedUrl = String(url || '').trim()
+
+    if (normalizedUrl && !uniqueUrls.includes(normalizedUrl)) {
+      uniqueUrls.push(normalizedUrl)
+    }
+  })
+
+  return uniqueUrls.map(function (url, index) {
     return {
       id: 'gallery-' + index,
       label:
@@ -276,6 +285,18 @@ function buildGalleryEntries(urls, assetKind) {
       imageUrl: url
     }
   })
+}
+
+function appendGalleryEntries(entries, urls, assetKind) {
+  var existingUrls = Array.isArray(entries)
+    ? entries
+        .map(function (entry) {
+          return entry.imageUrl
+        })
+        .filter(Boolean)
+    : []
+
+  return buildGalleryEntries(existingUrls.concat(Array.from(urls || [])), assetKind)
 }
 
 function getOptionDetails(options, selectedValue) {
@@ -317,23 +338,21 @@ function renderTemplateSizeOptions(selectedValue) {
 }
 
 function ensureImageGallery(assetKind, thumbnailUrl, imageGallery) {
-  var items = Array.isArray(imageGallery) ? imageGallery.slice() : []
-  var mainLabel = IMAGE_POST_CONFIG[assetKind]?.mainGalleryLabel || 'Main image'
+  var urls = []
 
-  if (
-    thumbnailUrl &&
-    !items.some(function (entry) {
-      return entry.imageUrl === thumbnailUrl
-    })
-  ) {
-    items.unshift({
-      id: 'gallery-main',
-      label: mainLabel,
-      imageUrl: thumbnailUrl
+  if (thumbnailUrl) {
+    urls.push(thumbnailUrl)
+  }
+
+  if (Array.isArray(imageGallery)) {
+    imageGallery.forEach(function (entry) {
+      if (entry?.imageUrl) {
+        urls.push(entry.imageUrl)
+      }
     })
   }
 
-  return items
+  return buildGalleryEntries(urls, assetKind)
 }
 
 function createTagPreview(tags) {
@@ -423,6 +442,7 @@ function renderImageAssetCard(assetKind, draft, isVisible) {
     assetKind +
     'Gallery" type="file" accept="image/*" multiple /></label>' +
     '</div>' +
+    '<p class="muted compact-help">You can add more than one photo here. If you skip the cover image, the first gallery photo becomes the main post image.</p>' +
     (config.linksLabel
       ? '<label>' +
         config.linksLabel +
@@ -493,7 +513,7 @@ async function serializeDraft(form, context) {
 
   if (galleryFiles && galleryFiles.length) {
     var uploadedGallery = await context.api.uploadGalleryFiles(galleryFiles, sessionProfile)
-    galleryEntries = buildGalleryEntries(uploadedGallery, assetKind)
+    galleryEntries = appendGalleryEntries(galleryEntries, uploadedGallery, assetKind)
   }
 
   if (!thumbnailUrl && galleryEntries.length) {
@@ -698,6 +718,7 @@ export var createBuildPage = {
       '<label>Thumbnail image<input name="modelThumbnail" type="file" accept="image/*" /></label>' +
       '<label>Reference or step images<input name="modelGallery" type="file" accept="image/*" multiple /></label>' +
       '</div>' +
+      '<p class="muted compact-help">You can add more than one photo here for references, steps, or extra angles.</p>' +
       '<label id="model-upload-field"' +
       (modelSource === 'upload' ? '' : ' hidden') +
       '>GLB or glTF model<input name="modelFile" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" /></label>' +
