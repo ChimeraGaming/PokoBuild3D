@@ -570,7 +570,7 @@ p {
 .tracker-summary-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .tracker-summary-card {
@@ -604,12 +604,17 @@ p {
   font-weight: 700;
 }
 
-.tracker-status--yes {
+.tracker-status--actual {
   background: rgba(220, 230, 215, 0.82);
   color: var(--accent);
 }
 
-.tracker-status--no {
+.tracker-status--test {
+  background: rgba(210, 153, 34, 0.16);
+  color: #e3b341;
+}
+
+.tracker-status--missing {
   background: rgba(157, 77, 64, 0.14);
   color: #8a3d32;
 }
@@ -1845,12 +1850,17 @@ textarea,
   color: #e3b341;
 }
 
-.tracker-status--yes {
+.tracker-status--actual {
   background: rgba(56, 139, 253, 0.16);
   color: #79c0ff;
 }
 
-.tracker-status--no {
+.tracker-status--test {
+  background: rgba(210, 153, 34, 0.14);
+  color: #f2cc60;
+}
+
+.tracker-status--missing {
   background: rgba(248, 81, 73, 0.12);
   color: #ff7b72;
 }

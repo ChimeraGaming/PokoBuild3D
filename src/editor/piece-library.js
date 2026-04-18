@@ -72,6 +72,7 @@ export var PIECE_LIBRARY = [
     name: 'Cube block',
     category: 'structure',
     libraryGroup: 'blocks',
+    coverageTier: 'test',
     size: { x: 1, y: 1, z: 1 },
     defaultMaterial: 'pine',
     mesh: 'box'
@@ -81,6 +82,7 @@ export var PIECE_LIBRARY = [
     name: 'Plank block',
     category: 'structure',
     libraryGroup: 'blocks',
+    coverageTier: 'test',
     size: { x: 1, y: 0.4, z: 1 },
     defaultMaterial: 'mosswood',
     mesh: 'box'
@@ -90,6 +92,7 @@ export var PIECE_LIBRARY = [
     name: 'Ladder panel',
     category: 'detail',
     libraryGroup: 'blocks',
+    coverageTier: 'test',
     size: { x: 1, y: 1, z: 0.2 },
     defaultMaterial: 'cream',
     mesh: 'panel'
@@ -99,6 +102,7 @@ export var PIECE_LIBRARY = [
     name: 'Post',
     category: 'structure',
     libraryGroup: 'blocks',
+    coverageTier: 'test',
     size: { x: 0.35, y: 1.2, z: 0.35 },
     defaultMaterial: 'forest',
     mesh: 'post'
@@ -108,6 +112,7 @@ export var PIECE_LIBRARY = [
     name: 'Floor tile',
     category: 'surface',
     libraryGroup: 'blocks',
+    coverageTier: 'test',
     size: { x: 1, y: 0.18, z: 1 },
     defaultMaterial: 'slate',
     mesh: 'tile'
@@ -117,6 +122,7 @@ export var PIECE_LIBRARY = [
     name: 'Stair wedge',
     category: 'structure',
     libraryGroup: 'blocks',
+    coverageTier: 'test',
     size: { x: 1, y: 1, z: 1 },
     defaultMaterial: 'pine',
     mesh: 'stair'
@@ -126,9 +132,110 @@ export var PIECE_LIBRARY = [
     name: 'Decor piece',
     category: 'detail',
     libraryGroup: 'blocks',
+    coverageTier: 'test',
     size: { x: 0.8, y: 0.6, z: 0.8 },
     defaultMaterial: 'clay',
     mesh: 'bevel'
+  },
+  {
+    id: 'wall-block',
+    name: 'Wall block',
+    category: 'structure',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 1, z: 1 },
+    defaultMaterial: 'slate',
+    mesh: 'wall'
+  },
+  {
+    id: 'pillar-block',
+    name: 'Pillar block',
+    category: 'structure',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 0.58, y: 1.2, z: 0.58 },
+    defaultMaterial: 'slate',
+    mesh: 'pillar'
+  },
+  {
+    id: 'pattern-block',
+    name: 'Pattern block',
+    category: 'surface',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 1, z: 1 },
+    defaultMaterial: 'cream',
+    mesh: 'pattern'
+  },
+  {
+    id: 'road-tile',
+    name: 'Road tile',
+    category: 'surface',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 0.18, z: 1 },
+    defaultMaterial: 'slate',
+    mesh: 'road'
+  },
+  {
+    id: 'terrain-block',
+    name: 'Terrain block',
+    category: 'terrain',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 1, z: 1 },
+    defaultMaterial: 'vine',
+    mesh: 'terrain'
+  },
+  {
+    id: 'rock-block',
+    name: 'Rock block',
+    category: 'stone',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 1, z: 1 },
+    defaultMaterial: 'slate',
+    mesh: 'rock'
+  },
+  {
+    id: 'ore-block',
+    name: 'Ore block',
+    category: 'stone',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 1, z: 1 },
+    defaultMaterial: 'slate',
+    mesh: 'ore'
+  },
+  {
+    id: 'utility-block',
+    name: 'Utility block',
+    category: 'utility',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 1, z: 1 },
+    defaultMaterial: 'slate',
+    mesh: 'utility'
+  },
+  {
+    id: 'hay-bale',
+    name: 'Hay bale',
+    category: 'utility',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 0.75, z: 1 },
+    defaultMaterial: 'pine',
+    mesh: 'hay'
+  },
+  {
+    id: 'light-cube',
+    name: 'Light cube',
+    category: 'utility',
+    libraryGroup: 'blocks',
+    coverageTier: 'actual',
+    size: { x: 1, y: 1, z: 1 },
+    defaultMaterial: 'glass',
+    mesh: 'light'
   }
 ]
 

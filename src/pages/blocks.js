@@ -9,13 +9,26 @@ import { escapeHtml } from '../utils/dom.js'
 
 var STATUS_OPTIONS = [
   { value: 'all', label: 'All blocks' },
-  { value: 'in-demo', label: 'In demo' },
+  { value: 'actual', label: 'Actual ready' },
+  { value: 'test', label: 'Test model ready' },
   { value: 'missing', label: 'Missing' }
 ]
 
+function getReadinessRank(item) {
+  if (item.readiness === 'actual') {
+    return 0
+  }
+
+  if (item.readiness === 'test') {
+    return 1
+  }
+
+  return 2
+}
+
 function sortBlocks(left, right) {
-  if (left.inDemo !== right.inDemo) {
-    return left.inDemo ? -1 : 1
+  if (left.readiness !== right.readiness) {
+    return getReadinessRank(left) - getReadinessRank(right)
   }
 
   if (left.groupLabel !== right.groupLabel) {
@@ -26,26 +39,70 @@ function sortBlocks(left, right) {
 }
 
 function matchesStatus(item, status) {
-  if (status === 'in-demo') {
-    return item.inDemo
+  if (status === 'actual') {
+    return item.readiness === 'actual'
+  }
+
+  if (status === 'test') {
+    return item.readiness === 'test'
   }
 
   if (status === 'missing') {
-    return !item.inDemo
+    return item.readiness === 'missing'
   }
 
   return true
 }
 
+function getStatusMeta(item) {
+  if (item.readiness === 'actual') {
+    return {
+      className: 'tracker-status--actual',
+      icon: 'A',
+      label: 'Actual ready'
+    }
+  }
+
+  if (item.readiness === 'test') {
+    return {
+      className: 'tracker-status--test',
+      icon: 'T',
+      label: 'Test model ready'
+    }
+  }
+
+  return {
+    className: 'tracker-status--missing',
+    icon: 'X',
+    label: 'Missing'
+  }
+}
+
 function renderStatus(item) {
+  var statusMeta = getStatusMeta(item)
+
   return (
     '<span class="tracker-status ' +
-    (item.inDemo ? 'tracker-status--yes' : 'tracker-status--no') +
+    statusMeta.className +
     '">' +
     '<span class="tracker-status__icon">' +
-    (item.inDemo ? '&#10003;' : 'X') +
+    statusMeta.icon +
     '</span>' +
-    (item.inDemo ? 'Model ready' : 'Missing') +
+    statusMeta.label +
+    '</span>'
+  )
+}
+
+function renderMatchedPiece(item) {
+  if (item.readiness === 'missing') {
+    return '<span class="muted">No matched editor piece yet</span>'
+  }
+
+  return (
+    '<strong>' +
+    escapeHtml(item.readyPieceName) +
+    '</strong><br /><span class="muted">' +
+    escapeHtml(item.readiness === 'actual' ? 'Dedicated lookalike piece' : 'Generic editor test piece') +
     '</span>'
   )
 }
@@ -63,9 +120,7 @@ function renderBlockRow(item) {
     escapeHtml(item.groupLabel) +
     '</td>' +
     '<td>' +
-    (item.inDemo
-      ? escapeHtml(item.demoPieceName)
-      : '<span class="muted">Not in the demo set yet</span>') +
+    renderMatchedPiece(item) +
     '</td>' +
     '</tr>'
   )
@@ -117,22 +172,29 @@ export var blocksPage = {
       '<div class="page-hero card">' +
       '<span class="eyebrow">Game block tracker</span>' +
       '<h1>Pokopia block coverage</h1>' +
-      '<p>Checks show where the current browser demo has a model-ready piece available. Terrain, ore, and natural rock blocks stay marked missing until those models exist in the demo set.</p>' +
+      '<p>Dedicated lookalike pieces count as actual ready. The original editor shapes count as test model ready when they only stand in for a similar Pokopia block.</p>' +
       '<p class="muted">Source pulled from <a class="text-link" href="' +
       POKOPIA_BLOCK_SOURCE.url +
       '" target="_blank" rel="noreferrer">' +
       escapeHtml(POKOPIA_BLOCK_SOURCE.label) +
-      '</a> on April 16, 2026.</p>' +
+      '</a> on ' +
+      escapeHtml(POKOPIA_BLOCK_SOURCE.pulledOn) +
+      '.</p>' +
       '<div class="tracker-summary-grid">' +
       '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Total</span><strong>' +
       POKOPIA_BLOCK_SUMMARY.total +
       '</strong><span>Blocks listed on Game8</span></article>' +
-      '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Model Ready</span><strong>' +
-      POKOPIA_BLOCK_SUMMARY.inDemo +
-      '</strong><span>Mapped to the shipped demo model set</span></article>' +
+      '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Actual Ready</span><strong>' +
+      POKOPIA_BLOCK_SUMMARY.actualReady +
+      '</strong><span>Matched to dedicated lookalike block pieces</span></article>' +
+      '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Test Model Ready</span><strong>' +
+      POKOPIA_BLOCK_SUMMARY.testReady +
+      '</strong><span>Covered by ' +
+      POKOPIA_BLOCK_SUMMARY.editorTestModels +
+      ' generic editor test pieces</span></article>' +
       '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Missing</span><strong>' +
       POKOPIA_BLOCK_SUMMARY.missing +
-      '</strong><span>Still needs a demo model</span></article>' +
+      '</strong><span>Still needs a new lookalike piece</span></article>' +
       '</div>' +
       '</div>' +
       '<section class="card stack">' +
@@ -156,13 +218,14 @@ export var blocksPage = {
       POKOPIA_BLOCK_SUMMARY.total +
       ' blocks.</p>' +
       '<div class="tag-row">' +
-      renderStatus({ inDemo: true }) +
-      renderStatus({ inDemo: false }) +
+      renderStatus({ readiness: 'actual' }) +
+      renderStatus({ readiness: 'test' }) +
+      renderStatus({ readiness: 'missing' }) +
       '</div>' +
       '</div>' +
       '</section>' +
       (items.length
-        ? '<section class="card stack"><div class="table-wrap"><table class="data-table tracker-table"><thead><tr><th>Model</th><th>Block</th><th>Group</th><th>Demo piece</th></tr></thead><tbody>' +
+        ? '<section class="card stack"><div class="table-wrap"><table class="data-table tracker-table"><thead><tr><th>Status</th><th>Block</th><th>Group</th><th>Matched piece</th></tr></thead><tbody>' +
           rows +
           '</tbody></table></div></section>'
         : renderEmptyState(

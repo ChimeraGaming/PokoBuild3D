@@ -205,6 +205,17 @@ function includesAny(value, keywords) {
   })
 }
 
+var PIECE_BY_ID = PIECE_LIBRARY.reduce(function (lookup, piece) {
+  lookup[piece.id] = piece
+  return lookup
+}, {})
+
+export var POKOPIA_EDITOR_TEST_MODELS = PIECE_LIBRARY.filter(function (piece) {
+  return piece.libraryGroup === 'blocks' && piece.coverageTier === 'test'
+})
+
+export var POKOPIA_EDITOR_TEST_MODEL_COUNT = POKOPIA_EDITOR_TEST_MODELS.length
+
 function getGroupLabel(group) {
   return POKOPIA_BLOCK_GROUPS.find(function (item) {
     return item.value === group
@@ -237,50 +248,139 @@ function inferBlockGroup(name) {
   return 'utility'
 }
 
-function getDemoPieceId(name, group) {
+function getPieceName(pieceId) {
+  return PIECE_BY_ID[pieceId]?.name || ''
+}
+
+function getActualPieceId(name, group) {
   var lower = name.toLowerCase()
 
   if (lower.includes('pillar')) {
-    return 'post'
+    return 'pillar-block'
   }
 
-  if (group === 'walls') {
-    return 'cube'
+  if (
+    group === 'walls' &&
+    includesAny(lower, [
+      'brick',
+      'stone',
+      'cobblestone',
+      'concrete',
+      'rough wall',
+      'bronze',
+      'iron wall',
+      'gold wall',
+      'crystal wall',
+      'modern wall',
+      'broken-tiling wall'
+    ])
+  ) {
+    return 'wall-block'
   }
 
-  if (group === 'floors') {
-    return 'floor-tile'
+  if (
+    group === 'floors' &&
+    includesAny(lower, ['road', 'circle flooring'])
+  ) {
+    return 'road-tile'
   }
 
   if (group === 'patterns') {
-    return 'cube'
+    return 'pattern-block'
   }
 
-  if (group === 'utility' && includesAny(lower, UTILITY_KEYWORDS)) {
-    return 'cube'
+  if (group === 'terrain') {
+    return 'terrain-block'
+  }
+
+  if (group === 'stone') {
+    return lower.includes('deposit') ? 'ore-block' : 'rock-block'
+  }
+
+  if (group === 'utility') {
+    if (lower.includes('hay pile')) {
+      return 'hay-bale'
+    }
+
+    if (lower.includes('cube light')) {
+      return 'light-cube'
+    }
+
+    if (includesAny(lower, ['iron plating', 'foundation', 'levee', 'scrap cube'])) {
+      return 'utility-block'
+    }
   }
 
   return null
 }
 
-function getDemoPieceName(pieceId) {
-  return PIECE_LIBRARY.find(function (piece) {
-    return piece.id === pieceId
-  })?.name || ''
+function getTestPieceId(name, group) {
+  var lower = name.toLowerCase()
+
+  if (group === 'walls') {
+    if (includesAny(lower, ['cloth', 'guest-room', 'crystal'])) {
+      return 'ladder'
+    }
+
+    return 'cube'
+  }
+
+  if (group === 'floors') {
+    if (includesAny(lower, ['wooden flooring', 'hardwood', 'tatami'])) {
+      return 'plank'
+    }
+
+    if (includesAny(lower, ['arched', 'triangle-design', 'fish-scale'])) {
+      return 'stair'
+    }
+
+    if (includesAny(lower, ['fluffy flooring', 'soft carpeting', 'extravagant carpeting', 'felt mat'])) {
+      return 'decor'
+    }
+
+    return 'floor-tile'
+  }
+
+  if (group === 'utility' && includesAny(lower, UTILITY_KEYWORDS)) {
+    return lower.includes('hay pile') ? 'decor' : 'cube'
+  }
+
+  return null
+}
+
+function getReadiness(actualPieceId, testPieceId) {
+  if (actualPieceId) {
+    return 'actual'
+  }
+
+  if (testPieceId) {
+    return 'test'
+  }
+
+  return 'missing'
 }
 
 export var POKOPIA_BLOCK_CATALOG = GAME8_BLOCK_NAMES.map(function (name, index) {
   var group = inferBlockGroup(name)
-  var demoPieceId = getDemoPieceId(name, group)
+  var actualPieceId = getActualPieceId(name, group)
+  var testPieceId = getTestPieceId(name, group)
+  var readiness = getReadiness(actualPieceId, testPieceId)
+  var readyPieceId = actualPieceId || testPieceId || ''
 
   return {
     id: slugify(name) + '-' + index,
     name: name,
     group: group,
     groupLabel: getGroupLabel(group),
-    inDemo: Boolean(demoPieceId),
-    demoPieceId: demoPieceId,
-    demoPieceName: getDemoPieceName(demoPieceId)
+    readiness: readiness,
+    isActualReady: readiness === 'actual',
+    isTestReady: readiness === 'test',
+    actualPieceId: actualPieceId,
+    actualPieceName: getPieceName(actualPieceId),
+    testPieceId: testPieceId,
+    testPieceName: getPieceName(testPieceId),
+    readyPieceId: readyPieceId,
+    readyPieceName: getPieceName(readyPieceId)
   }
 })
 
@@ -288,17 +388,24 @@ export var POKOPIA_BLOCK_SUMMARY = POKOPIA_BLOCK_CATALOG.reduce(
   function (summary, item) {
     summary.total += 1
 
-    if (item.inDemo) {
-      summary.inDemo += 1
-    } else {
-      summary.missing += 1
+    if (item.readiness === 'actual') {
+      summary.actualReady += 1
+      return summary
     }
 
+    if (item.readiness === 'test') {
+      summary.testReady += 1
+      return summary
+    }
+
+    summary.missing += 1
     return summary
   },
   {
     total: 0,
-    inDemo: 0,
+    actualReady: 0,
+    testReady: 0,
+    editorTestModels: POKOPIA_EDITOR_TEST_MODEL_COUNT,
     missing: 0
   }
 )
