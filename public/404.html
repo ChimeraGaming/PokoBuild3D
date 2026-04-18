@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PokoBuild3D</title>
+    <script>
+      (function () {
+        var search = window.location.search || ''
+        var segments = window.location.pathname.split('/').filter(Boolean)
+        var base = segments.length ? '/' + segments[0] + '/' : '/'
+        var routeParts = segments.length > 1 ? segments.slice(1) : []
+        var hashPath = routeParts.length ? '/' + routeParts.join('/') + search : '/'
+        window.location.replace(base + 'index.html#' + hashPath)
+      })()
+    </script>
+  </head>
+  <body></body>
+</html>

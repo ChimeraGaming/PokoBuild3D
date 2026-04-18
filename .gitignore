@@ -1,0 +1,9 @@
+node_modules
+dist
+.DS_Store
+.env
+LOCAL-START.md
+tmp-block-names.txt
+vite-dev.log
+vite-dev.err.log
+vite-dev.pid
