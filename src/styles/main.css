@@ -755,6 +755,7 @@ p {
   position: fixed;
   bottom: 1rem;
   z-index: 75;
+  --live-chat-font-size: 15px;
 }
 
 .live-chat--default {
@@ -839,6 +840,35 @@ p {
   gap: 0.75rem;
 }
 
+.live-chat__settings-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.live-chat__text-size-controls {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.live-chat__text-size-number {
+  flex: 0 0 6.5rem;
+}
+
+.live-chat__text-size-preset {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.live-chat__text-size-input,
+.live-chat__text-size-select {
+  width: 100%;
+}
+
+.live-chat__text-size-input {
+  padding-right: 0.55rem;
+}
+
 .live-chat__tabs {
   display: flex;
   gap: 0.65rem;
@@ -895,19 +925,19 @@ p {
 
 .live-chat__conversation-name {
   color: #f0f6fc;
-  font-size: 0.88rem;
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 1px), 31px);
 }
 
 .live-chat__conversation-time {
   color: #8b949e;
-  font-size: 0.72rem;
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 4px), 28px);
   white-space: nowrap;
 }
 
 .live-chat__conversation-preview {
   margin: 0;
   color: #8b949e;
-  font-size: 0.8rem;
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 2px), 30px);
   line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
@@ -916,7 +946,7 @@ p {
 
 .live-chat__conversation-empty {
   padding: 0.35rem 0.1rem;
-  font-size: 0.82rem;
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 2px), 30px);
 }
 
 .live-chat__messages {
@@ -946,7 +976,7 @@ p {
 .live-chat__line {
   margin: 0;
   font-family: 'Courier New', monospace;
-  font-size: 0.94rem;
+  font-size: var(--live-chat-font-size, 15px);
   line-height: 1.35;
   color: #f0f6fc;
   white-space: pre-wrap;
@@ -956,7 +986,7 @@ p {
 
 .live-chat__name {
   color: #f0f6fc;
-  font-size: 0.94rem;
+  font-size: inherit;
 }
 
 .live-chat__badge {
@@ -1010,7 +1040,7 @@ p {
 .live-chat__time {
   color: #8b949e;
   padding-left: 0.05rem;
-  font-size: 0.72rem;
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 3px), 29px);
 }
 
 .live-chat__text {
@@ -1032,16 +1062,20 @@ p {
 
 .live-chat__composer-meta {
   align-items: center;
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 2px), 30px);
 }
 
 .live-chat__label {
   gap: 0.55rem;
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 1px), 31px);
 }
 
 .live-chat__composer textarea {
   min-height: 5rem;
   max-height: 11rem;
   resize: vertical;
+  font-size: var(--live-chat-font-size, 15px);
+  line-height: 1.45;
 }
 
 .live-chat__empty {
@@ -1049,6 +1083,7 @@ p {
   border-radius: 6px;
   border: 1px dashed rgba(88, 166, 255, 0.24);
   background: rgba(7, 11, 16, 0.74);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 1px), 31px);
 }
 
 .build-card {

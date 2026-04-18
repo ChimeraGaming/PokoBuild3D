@@ -3,6 +3,7 @@ import { renderEmptyState } from '../components/states.js'
 import { showToast } from '../components/toast.js'
 import { escapeHtml } from '../utils/dom.js'
 import { createProfilePath, formatDate } from '../utils/format.js'
+import { readStorage, writeStorage } from '../utils/storage.js'
 import {
   ASSIGNABLE_SPECIAL_TAG_OPTIONS,
   canAssignSpecialTags,
@@ -13,6 +14,12 @@ import {
   renderBadgeChips,
   renderSocialLinks
 } from '../utils/profile.js'
+
+var PROFILE_TAB_KEY = 'pokobuilds3d:profile-tab'
+
+function normalizeProfileTab(value) {
+  return value === 'achievements' ? 'achievements' : 'builds'
+}
 
 function renderSpecialTagOption(tag, selected) {
   return (
@@ -106,10 +113,17 @@ export var profilePage = {
     }
 
     var builds = await context.api.listBuildsByUser(profile.id)
+    var isOwnProfile = context.session?.profile?.id === profile.id
+    var activeTab = normalizeProfileTab(readStorage(PROFILE_TAB_KEY, 'builds'))
     var publishedBuilds = builds.filter(function (build) {
-      return build.isPublished || context.session?.profile?.id === profile.id
+      return build.isPublished
     })
-    var cards = publishedBuilds.length
+    var draftBuilds = isOwnProfile
+      ? builds.filter(function (build) {
+          return !build.isPublished
+        })
+      : []
+    var publishedCards = publishedBuilds.length
       ? publishedBuilds.map(renderBuildCard).join('')
       : renderEmptyState(
           'No builds yet',
@@ -117,7 +131,9 @@ export var profilePage = {
           '',
           ''
         )
-    var isOwnProfile = context.session?.profile?.id === profile.id
+    var draftCards = draftBuilds.length
+      ? draftBuilds.map(renderBuildCard).join('')
+      : ''
     var canManageTags = canAssignSpecialTags(context.session?.profile)
     var unlockedBadges = getUnlockedBadges(profile)
     var featuredBadge = getFeaturedBadge(profile)
@@ -209,16 +225,29 @@ export var profilePage = {
       '<section class="card stack">' +
       '<div class="split-row"><div><span class="eyebrow">Profile tabs</span><h2>Progress</h2></div></div>' +
       '<div class="profile-section-tabs">' +
-      '<button class="button button-secondary is-active" type="button" data-profile-tab="builds">Builds</button>' +
-      '<button class="button button-ghost" type="button" data-profile-tab="achievements">Achievements</button>' +
+      '<button class="button ' +
+      (activeTab === 'builds' ? 'button-secondary is-active' : 'button-ghost') +
+      '" type="button" data-profile-tab="builds">Builds</button>' +
+      '<button class="button ' +
+      (activeTab === 'achievements' ? 'button-secondary is-active' : 'button-ghost') +
+      '" type="button" data-profile-tab="achievements">Achievements</button>' +
       '</div>' +
-      '<div id="profile-tab-builds" data-profile-panel="builds">' +
+      '<div id="profile-tab-builds" data-profile-panel="builds"' +
+      (activeTab === 'builds' ? '' : ' hidden') +
+      '>' +
       '<div class="split-row"><div><span class="eyebrow">Published builds</span><h3>Build library</h3></div></div>' +
       '<div class="card-grid card-grid-three">' +
-      cards +
+      publishedCards +
       '</div>' +
+      (draftBuilds.length
+        ? '<div class="stack profile-draft-section"><div class="split-row"><div><span class="eyebrow">Private drafts</span><h3>Draft shelf</h3></div></div><p class="muted">These posts only show on your profile until you publish them from the build page.</p><div class="card-grid card-grid-three">' +
+          draftCards +
+          '</div></div>'
+        : '') +
       '</div>' +
-      '<div id="profile-tab-achievements" data-profile-panel="achievements" hidden>' +
+      '<div id="profile-tab-achievements" data-profile-panel="achievements"' +
+      (activeTab === 'achievements' ? '' : ' hidden') +
+      '>' +
       '<div class="split-row"><div><span class="eyebrow">Badge guide</span><h3>Achievements</h3></div></div>' +
       '<div class="achievement-grid">' +
       badgeCatalog.map(renderAchievementCard).join('') +
@@ -252,16 +281,20 @@ export var profilePage = {
     }
 
     function setActiveTab(tabName) {
+      var nextTab = normalizeProfileTab(tabName)
+
       tabButtons.forEach(function (button) {
-        var isActive = button.dataset.profileTab === tabName
+        var isActive = button.dataset.profileTab === nextTab
         button.classList.toggle('is-active', isActive)
         button.classList.toggle('button-secondary', isActive)
         button.classList.toggle('button-ghost', !isActive)
       })
 
       tabPanels.forEach(function (panel) {
-        panel.hidden = panel.dataset.profilePanel !== tabName
+        panel.hidden = panel.dataset.profilePanel !== nextTab
       })
+
+      writeStorage(PROFILE_TAB_KEY, nextTab)
     }
 
     if (signOutButton) {
@@ -277,7 +310,7 @@ export var profilePage = {
           setActiveTab(button.dataset.profileTab)
         })
       })
-      setActiveTab('builds')
+      setActiveTab(normalizeProfileTab(readStorage(PROFILE_TAB_KEY, 'builds')))
     }
 
     if (specialTagsForm) {

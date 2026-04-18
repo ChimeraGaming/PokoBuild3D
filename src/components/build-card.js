@@ -8,7 +8,7 @@ export function renderBuildCard(build) {
   }, 0)
   var assetKind = resolveBuildAssetKind(build)
   var thumbnailUrl = getBuildThumbnail(build)
-  var metaLabel =
+  var baseMetaLabel =
     assetKind === 'picture'
       ? 'Picture post'
       : assetKind === 'real3d'
@@ -16,6 +16,7 @@ export function renderBuildCard(build) {
         : assetKind === 'tips'
           ? 'Tips and tricks'
           : materialCount + ' parts'
+  var metaLabel = build.isPublished ? baseMetaLabel : 'Private draft | ' + baseMetaLabel
   var tags = build.tags
     .slice(0, 3)
     .map(function (tag) {

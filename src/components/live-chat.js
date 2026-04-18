@@ -6,6 +6,9 @@ import { readStorage, writeStorage } from '../utils/storage.js'
 var CHAT_UI_KEY = 'pokobuilds3d:chat-ui'
 var FREEFORM_MIN_WIDTH = 320
 var FREEFORM_MIN_HEIGHT = 380
+var CHAT_TEXT_SIZE_MIN = 10
+var CHAT_TEXT_SIZE_MAX = 32
+var CHAT_TEXT_SIZE_DEFAULT = 15
 
 function isFiniteNumber(value) {
   return Number.isFinite(Number(value))
@@ -19,6 +22,16 @@ function normalizeLayoutMode(value) {
   }
 
   return 'default'
+}
+
+function normalizeChatTextSize(value) {
+  var numeric = Number(value)
+
+  if (!Number.isFinite(numeric)) {
+    return CHAT_TEXT_SIZE_DEFAULT
+  }
+
+  return Math.min(CHAT_TEXT_SIZE_MAX, Math.max(CHAT_TEXT_SIZE_MIN, Math.round(numeric)))
 }
 
 function loadChatUiState() {
@@ -35,6 +48,7 @@ function loadChatUiState() {
     mode: saved.mode === 'direct' ? 'direct' : 'community',
     directRecipientId: String(saved.directRecipientId || '').trim(),
     layout: normalizeLayoutMode(legacyLayoutValue),
+    textSize: normalizeChatTextSize(saved.textSize),
     freeformX: isFiniteNumber(saved.freeformX) ? Number(saved.freeformX) : null,
     freeformY: isFiniteNumber(saved.freeformY) ? Number(saved.freeformY) : null,
     freeformWidth: isFiniteNumber(saved.freeformWidth) ? Number(saved.freeformWidth) : null,
@@ -99,6 +113,26 @@ function renderRecipientOptions(profiles, selectedValue) {
       })
       .join('')
   )
+}
+
+function renderTextSizeOptions(selectedValue) {
+  var selectedSize = normalizeChatTextSize(selectedValue)
+  var options = []
+  var size
+
+  for (size = CHAT_TEXT_SIZE_MIN; size <= CHAT_TEXT_SIZE_MAX; size += 1) {
+    options.push(
+      '<option value="' +
+        size +
+        '"' +
+        (size === selectedSize ? ' selected' : '') +
+        '>' +
+        size +
+        ' px</option>'
+    )
+  }
+
+  return options.join('')
 }
 
 function renderConversationList(conversations, selectedRecipientId) {
@@ -187,6 +221,9 @@ export function renderLiveChat(session) {
     ' live-chat--' +
     uiState.layout +
     (uiState.collapsed ? ' is-collapsed' : '') +
+    '" style="--live-chat-font-size:' +
+    uiState.textSize +
+    'px;' +
     '">' +
     '<div class="live-chat__shell">' +
     '<div class="live-chat__header">' +
@@ -216,6 +253,18 @@ export function renderLiveChat(session) {
     (uiState.side === 'left' ? ' selected' : '') +
     '>Left</option></select></label>' +
     '<p class="muted compact-help">Choose where the live chat docks when it is expanded.</p>' +
+    '</div>' +
+    '<div class="live-chat__text-size-setting">' +
+    '<div class="dropdown-field"><span class="live-chat__settings-label">Text size</span><div class="live-chat__text-size-controls"><div class="live-chat__text-size-number"><input id="live-chat-text-size-input" class="live-chat__text-size-input" name="liveChatTextSizeInput" type="number" min="' +
+    CHAT_TEXT_SIZE_MIN +
+    '" max="' +
+    CHAT_TEXT_SIZE_MAX +
+    '" step="1" value="' +
+    escapeHtml(String(uiState.textSize)) +
+    '" aria-label="Chat text size number" /></div><div class="live-chat__text-size-preset"><select id="live-chat-text-size" class="live-chat__text-size-select" name="liveChatTextSize" aria-label="Chat text size preset">' +
+    renderTextSizeOptions(uiState.textSize) +
+    '</select></div></div></div>' +
+    '<p class="muted compact-help">Adjust chat text from 10px to 32px.</p>' +
     '</div>' +
     '</div>' +
     '<div class="live-chat__tabs">' +
@@ -284,6 +333,8 @@ export function mountLiveChat(options) {
   var settingsButton = document.getElementById('live-chat-settings-toggle')
   var layoutSelect = document.getElementById('live-chat-layout')
   var sideSelect = document.getElementById('live-chat-side')
+  var textSizeInput = document.getElementById('live-chat-text-size-input')
+  var textSizeSelect = document.getElementById('live-chat-text-size')
   var communityTab = document.getElementById('live-chat-tab-community')
   var directTab = document.getElementById('live-chat-tab-direct')
   var directControls = document.getElementById('live-chat-direct-controls')
@@ -434,12 +485,32 @@ export function mountLiveChat(options) {
     return true
   }
 
+  function syncTextSizeControls() {
+    if (textSizeInput) {
+      textSizeInput.value = String(uiState.textSize)
+    }
+
+    if (textSizeSelect) {
+      textSizeSelect.value = String(uiState.textSize)
+    }
+  }
+
+  function updateTextSize(nextValue) {
+    var normalizedValue = normalizeChatTextSize(nextValue)
+
+    uiState.textSize = normalizedValue
+    saveChatUiState(uiState)
+    applyUiState()
+  }
+
   function applyUiState() {
     root.classList.toggle('is-collapsed', uiState.collapsed)
     root.classList.toggle('live-chat--left', uiState.side === 'left')
     root.classList.toggle('live-chat--right', uiState.side === 'right')
     root.classList.toggle('live-chat--freeform', uiState.layout === 'freeform')
     root.classList.toggle('live-chat--default', uiState.layout !== 'freeform')
+    root.style.setProperty('--live-chat-font-size', uiState.textSize + 'px')
+    syncTextSizeControls()
 
     if (uiState.layout === 'freeform') {
       ensureFreeformRect()
@@ -664,6 +735,22 @@ export function mountLiveChat(options) {
 
     saveChatUiState(uiState)
     applyUiState()
+  })
+
+  textSizeInput?.addEventListener('input', function () {
+    if (!textSizeInput.value) {
+      return
+    }
+
+    updateTextSize(textSizeInput.value)
+  })
+
+  textSizeInput?.addEventListener('change', function () {
+    updateTextSize(textSizeInput.value || uiState.textSize)
+  })
+
+  textSizeSelect?.addEventListener('change', function () {
+    updateTextSize(textSizeSelect.value)
   })
 
   communityTab?.addEventListener('click', function () {
