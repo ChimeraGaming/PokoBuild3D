@@ -6,6 +6,8 @@ import { normalizeUsername, slugify, uniqueId } from './format.js'
 import {
   canAssignSpecialTags,
   canRemoveBuild,
+  getAutomaticSpecialTags,
+  mergeSpecialTags,
   normalizeSocials,
   normalizeSpecialTags
 } from './profile.js'
@@ -20,6 +22,8 @@ export var STORAGE_KEYS = {
   progress: 'pokobuilds3d:progress',
   chatMessages: 'pokobuilds3d:chat-messages'
 }
+
+var CHAT_LOG_LIMIT = 100
 
 function clone(value) {
   return structuredClone(value)
@@ -102,6 +106,14 @@ function applyOwnerBootstrap(tags, username) {
   }
 
   return normalizeSpecialTags(nextTags)
+}
+
+function canAwardEarlyBird(profiles) {
+  return (
+    profiles.filter(function (profile) {
+      return getAutomaticSpecialTags(profile.specialTags).includes('Early Bird')
+    }).length < 100
+  )
 }
 
 function findProfileByUsername(profiles, username) {
@@ -252,7 +264,10 @@ export function createLocalApi() {
         bio: '',
         avatarUrl: '',
         socials: [],
-        specialTags: applyOwnerBootstrap([], username),
+        specialTags: mergeSpecialTags(
+          applyOwnerBootstrap([], username),
+          canAwardEarlyBird(profiles) ? ['Early Bird'] : []
+        ),
         createdAt: new Date().toISOString()
       }
       var user = {
@@ -431,7 +446,10 @@ export function createLocalApi() {
 
       profiles[profileIndex] = {
         ...profiles[profileIndex],
-        specialTags: normalizeSpecialTags(specialTags)
+        specialTags: mergeSpecialTags(
+          specialTags,
+          getAutomaticSpecialTags(profiles[profileIndex].specialTags)
+        )
       }
 
       writeLocalCollection(STORAGE_KEYS.profiles, profiles)
@@ -574,7 +592,7 @@ export function createLocalApi() {
         .sort(function (left, right) {
           return new Date(left.createdAt) - new Date(right.createdAt)
         })
-        .slice(-40)
+        .slice(-CHAT_LOG_LIMIT)
         .map(function (message) {
           return decorateChatMessage(message, profiles)
         })
@@ -599,7 +617,7 @@ export function createLocalApi() {
       }
 
       messages.push(nextMessage)
-      writeLocalCollection(STORAGE_KEYS.chatMessages, messages)
+      writeLocalCollection(STORAGE_KEYS.chatMessages, messages.slice(-CHAT_LOG_LIMIT))
 
       return decorateChatMessage(nextMessage, readLocalCollection(STORAGE_KEYS.profiles))
     },

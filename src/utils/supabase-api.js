@@ -8,9 +8,12 @@ import { applyBuildFilters } from './filter-builds.js'
 import { normalizeUsername, slugify, uniqueId } from './format.js'
 import {
   canAssignSpecialTags,
+  normalizeManageableSpecialTags,
   normalizeSocials,
   normalizeSpecialTags
 } from './profile.js'
+
+var CHAT_LOG_LIMIT = 100
 
 async function fetchSupabaseAuthor(profileId) {
   var supabase = getSupabaseClient()
@@ -497,7 +500,7 @@ export function createSupabaseApi() {
 
       var response = await supabase.rpc('set_profile_special_tags', {
         target_profile_id: profileId,
-        next_tags: normalizeSpecialTags(specialTags)
+        next_tags: normalizeManageableSpecialTags(specialTags)
       })
 
       if (response.error) {
@@ -685,7 +688,7 @@ export function createSupabaseApi() {
         .from('chat_messages')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(40)
+        .limit(CHAT_LOG_LIMIT)
 
       if (response.error) {
         throw response.error

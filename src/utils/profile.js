@@ -1,6 +1,8 @@
 import { escapeHtml } from './dom.js'
 
-export var SPECIAL_TAG_OPTIONS = ['Owner', 'Site Admin', 'Community Expert']
+export var MANAGEABLE_SPECIAL_TAG_OPTIONS = ['Owner', 'Site Admin', 'Community Expert']
+export var AUTOMATIC_SPECIAL_TAG_OPTIONS = ['Early Bird']
+export var SPECIAL_TAG_OPTIONS = MANAGEABLE_SPECIAL_TAG_OPTIONS.concat(AUTOMATIC_SPECIAL_TAG_OPTIONS)
 
 export function createDefaultAvatar(name) {
   var label = String(name || 'P').trim().charAt(0).toUpperCase() || 'P'
@@ -73,6 +75,28 @@ export function normalizeSpecialTags(tags) {
       seen.add(tag)
       return true
     })
+}
+
+export function normalizeManageableSpecialTags(tags) {
+  var allowed = new Set(MANAGEABLE_SPECIAL_TAG_OPTIONS)
+
+  return normalizeSpecialTags(tags).filter(function (tag) {
+    return allowed.has(tag)
+  })
+}
+
+export function getAutomaticSpecialTags(tags) {
+  var automatic = new Set(AUTOMATIC_SPECIAL_TAG_OPTIONS)
+
+  return normalizeSpecialTags(tags).filter(function (tag) {
+    return automatic.has(tag)
+  })
+}
+
+export function mergeSpecialTags(manageableTags, automaticTags) {
+  return normalizeSpecialTags(
+    normalizeManageableSpecialTags(manageableTags).concat(getAutomaticSpecialTags(automaticTags))
+  )
 }
 
 export function hasSpecialTag(profile, tag) {

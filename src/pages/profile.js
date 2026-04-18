@@ -4,7 +4,7 @@ import { showToast } from '../components/toast.js'
 import { escapeHtml } from '../utils/dom.js'
 import { createProfilePath, formatDate } from '../utils/format.js'
 import {
-  SPECIAL_TAG_OPTIONS,
+  MANAGEABLE_SPECIAL_TAG_OPTIONS,
   canAssignSpecialTags,
   getProfileAvatar,
   renderSocialLinks,
@@ -125,7 +125,7 @@ export var profilePage = {
           '<details class="dropdown-menu special-tags-dropdown" id="special-tags-dropdown"><summary class="dropdown-menu__summary"><span>Special tags</span><span id="special-tags-selection" class="muted">' +
           escapeHtml(renderSpecialTagSelection(profile.specialTags)) +
           '</span></summary><div class="dropdown-menu__panel"><div class="dropdown-checkbox-list">' +
-          SPECIAL_TAG_OPTIONS.map(function (tag) {
+          MANAGEABLE_SPECIAL_TAG_OPTIONS.map(function (tag) {
             return renderSpecialTagOption(tag, profile.specialTags.includes(tag))
           }).join('') +
           '</div></div></details>' +

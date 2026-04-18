@@ -8,6 +8,7 @@ import { createSupabaseApi } from './supabase-api.js'
 import { gridFromTemplateSize, normalizeTemplateSize } from './template-size.js'
 
 var CHAT_FALLBACK_KEY = 'pokobuilds3d:fallback-chat-messages'
+var CHAT_LOG_LIMIT = 100
 
 function isMissingChatTableError(error) {
   var message = String(error?.message || '')
@@ -43,7 +44,7 @@ function readFallbackChatMessages() {
     .sort(function (left, right) {
       return new Date(left.createdAt) - new Date(right.createdAt)
     })
-    .slice(-40)
+    .slice(-CHAT_LOG_LIMIT)
 }
 
 function writeFallbackChatMessages(messages) {
@@ -128,7 +129,7 @@ export function createAppApi() {
         var messages = readFallbackChatMessages()
 
         messages.push(nextMessage)
-        writeFallbackChatMessages(messages)
+        writeFallbackChatMessages(messages.slice(-CHAT_LOG_LIMIT))
         return nextMessage
       }
 
