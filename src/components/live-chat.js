@@ -184,6 +184,8 @@ export function renderLiveChat(session) {
   return (
     '<aside id="live-chat-root" class="live-chat live-chat--' +
     uiState.side +
+    ' live-chat--' +
+    uiState.layout +
     (uiState.collapsed ? ' is-collapsed' : '') +
     '">' +
     '<div class="live-chat__shell">' +

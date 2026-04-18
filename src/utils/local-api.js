@@ -2,7 +2,7 @@ import { demoBuilds } from '../data/demo-builds.js'
 import { demoProfiles } from '../data/demo-profiles.js'
 import { normalizeBuildRecord, createBuildFromDraft } from './build-model.js'
 import { applyBuildFilters } from './filter-builds.js'
-import { normalizeUsername, slugify, uniqueId } from './format.js'
+import { createUniqueSlug, normalizeUsername, slugify, uniqueId } from './format.js'
 import {
   ASSIGNABLE_SPECIAL_TAG_OPTIONS,
   canAssignSpecialTags,
@@ -390,9 +390,18 @@ export function createLocalApi() {
     async saveBuild(input, sessionProfile) {
       var builds = readLocalCollection(STORAGE_KEYS.builds)
       var nextBuild = createBuildFromDraft(input, sessionProfile.id)
+      var takenSlugs = builds
+        .filter(function (build) {
+          return build.id !== nextBuild.id
+        })
+        .map(function (build) {
+          return build.slug
+        })
       var existingIndex = builds.findIndex(function (build) {
         return build.id === nextBuild.id
       })
+
+      nextBuild.slug = createUniqueSlug(nextBuild.slug || nextBuild.title, takenSlugs)
 
       if (existingIndex >= 0) {
         builds[existingIndex] = nextBuild

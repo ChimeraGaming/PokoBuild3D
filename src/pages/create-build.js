@@ -861,10 +861,12 @@ export var createBuildPage = {
       context.router.navigate('/editor')
       return
     }
+    var isPublishing = false
 
     saveButton.addEventListener('click', async function () {
       try {
         var draft = await serializeDraft(form, context)
+        draft.isPublished = false
         context.createDraft = draft
         saveCreateDraft(draft)
         showToast('Draft metadata saved.', 'success')
@@ -876,6 +878,7 @@ export var createBuildPage = {
     editorButton.addEventListener('click', async function () {
       try {
         var draft = await serializeDraft(form, context)
+        draft.isPublished = false
         context.createDraft = draft
         saveCreateDraft(draft)
         context.router.navigate('/editor')
@@ -885,8 +888,15 @@ export var createBuildPage = {
     })
 
     publishButton.addEventListener('click', async function () {
+      if (isPublishing) {
+        return
+      }
+
       try {
+        isPublishing = true
+        publishButton.disabled = true
         var draft = await serializeDraft(form, context)
+        draft.isPublished = true
         context.createDraft = draft
 
         if (draft.modelType === 'editor') {
@@ -897,11 +907,19 @@ export var createBuildPage = {
         }
 
         var saved = await context.api.saveBuild(draft, context.session.profile)
-        saveCreateDraft(draft)
+        saveCreateDraft({
+          ...draft,
+          id: '',
+          slug: '',
+          isPublished: false
+        })
         showToast('Post published.', 'success')
         context.router.navigate('/build/' + saved.slug)
       } catch (error) {
         showToast(error.message, 'error')
+      } finally {
+        isPublishing = false
+        publishButton.disabled = false
       }
     })
   }

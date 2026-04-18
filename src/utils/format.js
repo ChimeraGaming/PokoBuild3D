@@ -6,6 +6,39 @@ export function slugify(value) {
     .replace(/^-+|-+$/g, '')
 }
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export function createUniqueSlug(value, existingSlugs) {
+  var baseSlug = slugify(value) || uniqueId('slug')
+  var takenSlugs = Array.isArray(existingSlugs) ? existingSlugs : []
+  var slugPattern = new RegExp('^' + escapeRegExp(baseSlug) + '(?:-(\\d+))?$')
+  var baseTaken = false
+  var highestSuffix = 1
+
+  takenSlugs.forEach(function (candidate) {
+    var match = String(candidate || '').match(slugPattern)
+
+    if (!match) {
+      return
+    }
+
+    if (match[1]) {
+      highestSuffix = Math.max(highestSuffix, Number(match[1]) + 1)
+      return
+    }
+
+    baseTaken = true
+  })
+
+  if (!baseTaken && highestSuffix === 1) {
+    return baseSlug
+  }
+
+  return baseSlug + '-' + highestSuffix
+}
+
 export function normalizeUsername(value, fallbackValue) {
   var username = String(value || '').trim()
 

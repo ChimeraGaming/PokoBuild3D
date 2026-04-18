@@ -5,7 +5,7 @@ import {
   supabaseRowsToBuild
 } from './build-model.js'
 import { applyBuildFilters } from './filter-builds.js'
-import { normalizeUsername, slugify, uniqueId } from './format.js'
+import { createUniqueSlug, normalizeUsername, slugify, uniqueId } from './format.js'
 import {
   canAssignSpecialTags,
   normalizeFeaturedBadgeKey,
@@ -263,6 +263,36 @@ function findUnsupportedBuildColumn(error) {
   )
 }
 
+function isBuildSlugConflict(error) {
+  var message = String(error?.message || '')
+  var details = String(error?.details || '')
+  var hint = String(error?.hint || '')
+
+  return /builds_slug_key/i.test(message + ' ' + details + ' ' + hint)
+}
+
+async function listMatchingBuildSlugs(supabase, baseSlug, excludedBuildId) {
+  var response = await supabase.from('builds').select('id, slug').ilike('slug', baseSlug + '%')
+
+  if (response.error) {
+    throw response.error
+  }
+
+  return (response.data || [])
+    .filter(function (row) {
+      return row.id !== excludedBuildId
+    })
+    .map(function (row) {
+      return row.slug
+    })
+}
+
+async function ensureUniqueBuildSlug(supabase, desiredSlug, buildId) {
+  var baseSlug = slugify(desiredSlug) || uniqueId('slug')
+  var takenSlugs = await listMatchingBuildSlugs(supabase, baseSlug, buildId)
+  return createUniqueSlug(baseSlug, takenSlugs)
+}
+
 async function upsertBuildRowWithFallback(supabase, buildRow) {
   var payload = { ...buildRow }
   var strippedColumns = new Set()
@@ -471,11 +501,23 @@ export function createSupabaseApi() {
     async saveBuild(input, sessionProfile) {
       var supabase = getSupabaseClient()
       var nextBuild = createBuildFromDraft(input, sessionProfile.id)
-      var rows = buildToSupabaseRows(nextBuild)
-      var upsert = await upsertBuildRowWithFallback(supabase, rows.build)
+      var baseSlug = nextBuild.slug || nextBuild.title
+      var rows
+      var upsert
+      var attempt
 
-      if (upsert.error) {
-        throw upsert.error
+      for (attempt = 0; attempt < 3; attempt += 1) {
+        nextBuild.slug = await ensureUniqueBuildSlug(supabase, baseSlug, nextBuild.id)
+        rows = buildToSupabaseRows(nextBuild)
+
+        try {
+          upsert = await upsertBuildRowWithFallback(supabase, rows.build)
+          break
+        } catch (error) {
+          if (!isBuildSlugConflict(error) || attempt === 2) {
+            throw error
+          }
+        }
       }
 
       var deletes = await Promise.all([

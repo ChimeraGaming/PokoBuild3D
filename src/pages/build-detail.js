@@ -217,6 +217,7 @@ export var buildDetailPage = {
     var assetKind = resolveBuildAssetKind(build)
     var canDeleteBuild = canRemoveBuild(context.session?.profile, build)
     var canEditImage = context.session?.profile?.id === build.userId
+    var canPublishBuild = canEditImage && !build.isPublished
     var thumbnailUrl = getBuildThumbnail(build)
     var viewerSection = has3DModel
       ? '<div class="viewer-layout">' +
@@ -273,7 +274,8 @@ export var buildDetailPage = {
       createProfilePath(build.author?.username || '') +
       '">' +
       (build.author?.displayName || 'Unknown author') +
-      '</a><p class="muted">Published ' +
+      '</a><p class="muted">' +
+      (build.isPublished ? 'Published ' : 'Draft saved ') +
       formatDate(build.createdAt) +
       '</p></div>' +
       '</div>' +
@@ -290,6 +292,9 @@ export var buildDetailPage = {
       '<div class="button-row">' +
       (has3DModel
         ? '<button class="button button-primary" id="remix-build" type="button">Save A Copy / Remix</button>'
+        : '') +
+      (canPublishBuild
+        ? '<button class="button button-primary" id="publish-build" type="button">Publish Post</button>'
         : '') +
       '<button class="button button-secondary" id="favorite-build" type="button">' +
       (isFavorited ? 'Unfavorite' : 'Favorite') +
@@ -362,6 +367,7 @@ export var buildDetailPage = {
     var has3DModel = hasThreeDimensionalModel(build)
     var assetKind = resolveBuildAssetKind(build)
     var deleteButton = document.getElementById('delete-build')
+    var publishButton = document.getElementById('publish-build')
     var editImageButton = document.getElementById('edit-build-image')
     var editImageInput = document.getElementById('edit-build-image-input')
     var addPhotosButton = document.getElementById('add-build-photos')
@@ -521,8 +527,41 @@ export var buildDetailPage = {
       }
     }
 
+    async function handlePublish() {
+      if (!context.session?.profile || context.session.profile.id !== build.userId) {
+        return
+      }
+
+      try {
+        publishButton.disabled = true
+        publishButton.textContent = 'Publishing...'
+
+        var savedBuild = await context.api.saveBuild(
+          {
+            ...build,
+            isPublished: true,
+            createdAt: build.createdAt
+          },
+          context.session.profile
+        )
+
+        showToast('Post published.', 'success')
+        context.router.navigate('/build/' + savedBuild.slug, {
+          refresh: String(Date.now())
+        })
+      } catch (error) {
+        publishButton.disabled = false
+        publishButton.textContent = 'Publish Post'
+        showToast(error.message, 'error')
+      }
+    }
+
     if (deleteButton) {
       deleteButton.addEventListener('click', handleDelete)
+    }
+
+    if (publishButton) {
+      publishButton.addEventListener('click', handlePublish)
     }
 
     if (editImageButton && editImageInput) {
