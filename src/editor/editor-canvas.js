@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { applyPieceTransform, createPieceMesh } from '../three/piece-factory.js'
+import { applyPieceTransform, createPieceMesh, disposePieceObject } from '../three/piece-factory.js'
 import { getGridBounds, isCoordInGrid } from '../utils/template-size.js'
 
 export class EditorCanvas {
@@ -153,12 +153,7 @@ export class EditorCanvas {
       if (!nextKeys.has(pieceId)) {
         var mesh = editor.meshMap.get(pieceId)
         editor.pieceGroup.remove(mesh)
-        if (mesh.geometry) {
-          mesh.geometry.dispose()
-        }
-        if (mesh.material) {
-          mesh.material.dispose()
-        }
+        disposePieceObject(mesh)
         editor.meshMap.delete(pieceId)
       }
     })
@@ -237,7 +232,7 @@ export class EditorCanvas {
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
     this.raycaster.setFromCamera(this.pointer, this.camera)
-    var intersections = this.raycaster.intersectObjects(Array.from(this.meshMap.values()))
+    var intersections = this.raycaster.intersectObjects(Array.from(this.meshMap.values()), true)
 
     if (intersections.length) {
       this.editorState.removePieceById(intersections[0].object.userData.pieceId)
@@ -267,6 +262,10 @@ export class EditorCanvas {
     this.resizeObserver.disconnect()
     this.renderer.domElement.removeEventListener('pointermove', this.handlePointerMove)
     this.renderer.domElement.removeEventListener('click', this.handleClick)
+    this.meshMap.forEach(function (mesh) {
+      disposePieceObject(mesh)
+    })
+    this.meshMap.clear()
     this.controls.dispose()
     this.renderer.dispose()
     this.container.innerHTML = ''

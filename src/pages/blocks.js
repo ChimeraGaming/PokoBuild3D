@@ -45,7 +45,7 @@ function renderStatus(item) {
     '<span class="tracker-status__icon">' +
     (item.inDemo ? '&#10003;' : 'X') +
     '</span>' +
-    (item.inDemo ? 'In demo' : 'Missing') +
+    (item.inDemo ? 'Model ready' : 'Missing') +
     '</span>'
   )
 }
@@ -117,7 +117,7 @@ export var blocksPage = {
       '<div class="page-hero card">' +
       '<span class="eyebrow">Game block tracker</span>' +
       '<h1>Pokopia block coverage</h1>' +
-      '<p>Checks show where the current browser demo has a close preview piece ready. Terrain, ore, and natural rock blocks stay marked missing until those models exist in the demo set.</p>' +
+      '<p>Checks show where the current browser demo has a model-ready piece available. Terrain, ore, and natural rock blocks stay marked missing until those models exist in the demo set.</p>' +
       '<p class="muted">Source pulled from <a class="text-link" href="' +
       POKOPIA_BLOCK_SOURCE.url +
       '" target="_blank" rel="noreferrer">' +
@@ -127,9 +127,9 @@ export var blocksPage = {
       '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Total</span><strong>' +
       POKOPIA_BLOCK_SUMMARY.total +
       '</strong><span>Blocks listed on Game8</span></article>' +
-      '<article class="inset-panel tracker-summary-card"><span class="eyebrow">In Demo</span><strong>' +
+      '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Model Ready</span><strong>' +
       POKOPIA_BLOCK_SUMMARY.inDemo +
-      '</strong><span>Previewable with current demo pieces</span></article>' +
+      '</strong><span>Mapped to the shipped demo model set</span></article>' +
       '<article class="inset-panel tracker-summary-card"><span class="eyebrow">Missing</span><strong>' +
       POKOPIA_BLOCK_SUMMARY.missing +
       '</strong><span>Still needs a demo model</span></article>' +
@@ -162,7 +162,7 @@ export var blocksPage = {
       '</div>' +
       '</section>' +
       (items.length
-        ? '<section class="card stack"><div class="table-wrap"><table class="data-table tracker-table"><thead><tr><th>Demo</th><th>Block</th><th>Group</th><th>Demo piece</th></tr></thead><tbody>' +
+        ? '<section class="card stack"><div class="table-wrap"><table class="data-table tracker-table"><thead><tr><th>Model</th><th>Block</th><th>Group</th><th>Demo piece</th></tr></thead><tbody>' +
           rows +
           '</tbody></table></div></section>'
         : renderEmptyState(

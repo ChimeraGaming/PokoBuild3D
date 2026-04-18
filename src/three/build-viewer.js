@@ -170,9 +170,10 @@ export class BuildViewer {
     this.state.wireframe = !this.state.wireframe
     this.meshEntries.forEach(function (entry) {
       updateMeshStyle(entry.mesh, {
-        wireframe: entry.mesh.material.wireframe ? false : true,
+        wireframe: entry.mesh.userData.wireframe ? false : true,
         mode: 'solid'
       })
+      entry.mesh.userData.wireframe = !entry.mesh.userData.wireframe
     })
   }
 
@@ -183,6 +184,7 @@ export class BuildViewer {
         wireframe: mode === 'wireframe',
         mode: mode
       })
+      entry.mesh.userData.wireframe = mode === 'wireframe'
     })
   }
 
