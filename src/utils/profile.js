@@ -361,11 +361,11 @@ export function renderBadgeChips(badges) {
   }
 
   return (
-    '<div class="tag-row">' +
+    '<div class="tag-row badge-chip-row">' +
     items
       .map(function (badge) {
         return (
-          '<span class="tag-pill tag-pill--badge tag-pill--' +
+          '<span class="tag-pill tag-pill--badge badge-chip tag-pill--' +
           escapeHtml(badge.tone || 'default') +
           '">' +
           escapeHtml(badge.label) +
@@ -399,11 +399,11 @@ export function renderSocialLinks(socials) {
   }
 
   return (
-    '<div class="social-list">' +
+    '<div class="social-list social-list--profile">' +
     items
       .map(function (entry) {
         return (
-          '<a class="social-chip" href="' +
+          '<a class="social-chip social-chip--profile" href="' +
           escapeHtml(entry.url) +
           '" target="_blank" rel="noreferrer">' +
           escapeHtml(entry.label) +

@@ -73,12 +73,53 @@ function renderMilestoneList(milestones) {
   )
 }
 
+function getAchievementTone(entry) {
+  if (entry?.currentBadge?.tone) {
+    return entry.currentBadge.tone
+  }
+
+  if (entry?.key === 'post-master') {
+    return 'post-master'
+  }
+
+  if (entry?.key === 'chatterbox') {
+    return 'chatterbox'
+  }
+
+  if (entry?.key === 'owner') {
+    return 'owner'
+  }
+
+  if (entry?.key === 'site-admin') {
+    return 'admin'
+  }
+
+  if (entry?.key === 'community-expert') {
+    return 'expert'
+  }
+
+  if (entry?.key === 'early-bird') {
+    return 'early-bird'
+  }
+
+  return 'default'
+}
+
 function renderAchievementCard(entry) {
+  var tone = getAchievementTone(entry)
+  var isUnlocked = Boolean(entry.currentBadge)
+  var summaryTone = isUnlocked ? tone : 'locked'
+
   return (
-    '<article class="card stack achievement-card">' +
-    '<div class="split-row achievement-card__header"><div><span class="eyebrow">Badge</span><h3>' +
+    '<article class="card stack achievement-card achievement-card--' +
+    escapeHtml(tone) +
+    (isUnlocked ? ' is-unlocked' : ' is-locked') +
+    '">' +
+    '<div class="split-row achievement-card__header"><div><span class="eyebrow achievement-card__eyebrow">Badge</span><h3>' +
     escapeHtml(entry.title) +
-    '</h3></div><span class="tag-pill">' +
+    '</h3></div><span class="tag-pill achievement-card__summary-pill achievement-card__summary-pill--' +
+    escapeHtml(summaryTone) +
+    '">' +
     escapeHtml(entry.currentBadge ? entry.currentBadge.label : entry.countLabel) +
     '</span></div>' +
     '<p class="muted">' +
@@ -151,45 +192,45 @@ export var profilePage = {
       escapeHtml(profile.displayName) +
       '" />' +
       '<div class="stack profile-copy">' +
-      '<span class="eyebrow">' +
+      '<span class="eyebrow profile-kicker">' +
       escapeHtml(profile.username) +
       '</span>' +
       '<h1>' +
       escapeHtml(profile.displayName) +
       '</h1>' +
       (featuredBadge
-        ? '<div class="profile-featured-badge">' +
-          '<span class="eyebrow">Featured badge</span>' +
+        ? '<div class="profile-featured-badge profile-section-block">' +
+          '<span class="eyebrow profile-section-label">Featured badge</span>' +
           renderBadgeChips([featuredBadge]) +
           '</div>'
         : '') +
       '<p>' +
       escapeHtml(profile.bio || 'No bio added yet.') +
       '</p>' +
-      '<div class="tag-row">' +
-      '<span class="tag-pill">' +
+      '<div class="tag-row profile-stat-row">' +
+      '<span class="tag-pill profile-stat-pill">' +
       escapeHtml(profile.buildCount) +
       ' published builds</span>' +
-      '<span class="tag-pill">' +
+      '<span class="tag-pill profile-stat-pill">' +
       escapeHtml(profile.chatCount) +
       ' chat messages</span>' +
-      '<span class="tag-pill">' +
+      '<span class="tag-pill profile-stat-pill">' +
       escapeHtml(profile.favoritesCount) +
       ' favorites</span>' +
-      '<span class="tag-pill">Joined ' +
+      '<span class="tag-pill profile-stat-pill">Joined ' +
       escapeHtml(formatDate(profile.createdAt)) +
       '</span>' +
       '</div>' +
       (unlockedBadges.length
-        ? '<div class="profile-special-tags stack">' +
-          '<span class="eyebrow">Unlocked badges</span>' +
+        ? '<div class="profile-special-tags stack profile-section-block">' +
+          '<span class="eyebrow profile-section-label">Unlocked badges</span>' +
           '<div id="profile-special-tags">' +
           renderBadgeChips(unlockedBadges) +
           '</div>' +
           '</div>'
         : '') +
-      '<div class="profile-socials">' +
-      '<span class="eyebrow">Socials</span>' +
+      '<div class="profile-socials profile-section-block">' +
+      '<span class="eyebrow profile-section-label">Socials</span>' +
       renderSocialLinks(profile.socials) +
       '</div>' +
       '</div>' +
@@ -201,7 +242,7 @@ export var profilePage = {
       '</div>' +
       (canManageTags
         ? '<section class="card stack">' +
-          '<span class="eyebrow">Owner tools</span>' +
+          '<span class="eyebrow profile-section-label">Owner tools</span>' +
           '<h2>Manage special badges</h2>' +
           '<p class="muted">Choose which owner-managed badges appear on this profile.</p>' +
           '<form id="special-tags-form" class="stack" data-profile-id="' +
@@ -223,7 +264,7 @@ export var profilePage = {
           '</section>'
         : '') +
       '<section class="card stack" id="profile-progress-section">' +
-      '<div class="split-row"><div><span class="eyebrow">Profile tabs</span><h2>Progress</h2></div></div>' +
+      '<div class="split-row"><div><span class="eyebrow profile-section-label">Profile tabs</span><h2>Progress</h2></div></div>' +
       '<div class="profile-section-tabs">' +
       '<button class="button ' +
       (activeTab === 'builds' ? 'button-secondary is-active' : 'button-ghost') +
@@ -235,12 +276,12 @@ export var profilePage = {
       '<div id="profile-tab-builds" data-profile-panel="builds"' +
       (activeTab === 'builds' ? '' : ' hidden') +
       '>' +
-      '<div class="split-row"><div><span class="eyebrow">Published builds</span><h3>Build library</h3></div></div>' +
+      '<div class="split-row"><div><span class="eyebrow profile-section-label">Published builds</span><h3>Build library</h3></div></div>' +
       '<div class="card-grid card-grid-three">' +
       publishedCards +
       '</div>' +
       (draftBuilds.length
-        ? '<div class="stack profile-draft-section"><div class="split-row"><div><span class="eyebrow">Private drafts</span><h3>Draft shelf</h3></div></div><p class="muted">These posts only show on your profile until you publish them from the build page.</p><div class="card-grid card-grid-three">' +
+        ? '<div class="stack profile-draft-section"><div class="split-row"><div><span class="eyebrow profile-section-label">Private drafts</span><h3>Draft shelf</h3></div></div><p class="muted">These posts only show on your profile until you publish them from the build page.</p><div class="card-grid card-grid-three">' +
           draftCards +
           '</div></div>'
         : '') +
@@ -248,7 +289,7 @@ export var profilePage = {
       '<div id="profile-tab-achievements" data-profile-panel="achievements"' +
       (activeTab === 'achievements' ? '' : ' hidden') +
       '>' +
-      '<div class="split-row"><div><span class="eyebrow">Badge guide</span><h3>Achievements</h3></div></div>' +
+      '<div class="split-row"><div><span class="eyebrow profile-section-label">Badge guide</span><h3>Achievements</h3></div></div>' +
       '<div class="achievement-grid">' +
       badgeCatalog.map(renderAchievementCard).join('') +
       '</div>' +

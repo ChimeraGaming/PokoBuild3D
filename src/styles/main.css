@@ -1218,6 +1218,39 @@ p {
   gap: 0.85rem;
 }
 
+.profile-kicker,
+.profile-section-label,
+.achievement-card__eyebrow {
+  padding: 0.28rem 0.52rem;
+  border-radius: 9px;
+  border: 1px solid rgba(210, 153, 34, 0.18);
+  background: rgba(210, 153, 34, 0.08);
+  color: #f2cc60;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+}
+
+.profile-kicker {
+  background: rgba(210, 153, 34, 0.12);
+  border-color: rgba(210, 153, 34, 0.24);
+}
+
+.profile-stat-row,
+.badge-chip-row,
+.social-list--profile {
+  gap: 0.55rem;
+}
+
+.profile-stat-pill {
+  padding: 0.55rem 0.78rem;
+  border-radius: 12px;
+  border: 1px solid rgba(48, 54, 61, 0.94);
+  background: rgba(11, 15, 21, 0.82);
+  color: #c9d1d9;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
 .profile-special-tags {
   gap: 0.65rem;
 }
@@ -1225,6 +1258,12 @@ p {
 .profile-featured-badge {
   display: grid;
   gap: 0.35rem;
+}
+
+.profile-section-block {
+  gap: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(48, 54, 61, 0.75);
 }
 
 .profile-actions {
@@ -1242,15 +1281,22 @@ p {
 .social-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.55rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgba(183, 172, 149, 0.4);
-  background: rgba(255, 253, 249, 0.82);
-  color: var(--accent);
+  padding: 0.62rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(48, 54, 61, 0.94);
+  background: rgba(11, 15, 21, 0.82);
+  color: #c9d1d9;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .social-chip:hover {
-  border-color: rgba(54, 88, 67, 0.35);
+  border-color: rgba(88, 166, 255, 0.32);
+  background: rgba(16, 22, 31, 0.96);
+  color: #f0f6fc;
 }
 
 .special-tag-grid {
@@ -1360,6 +1406,10 @@ p {
 
 .achievement-card {
   min-height: 100%;
+  background:
+    linear-gradient(180deg, rgba(20, 26, 34, 0.98), rgba(13, 17, 23, 0.96)),
+    var(--surface);
+  border-color: rgba(48, 54, 61, 0.92);
 }
 
 .achievement-card__header {
@@ -1373,12 +1423,13 @@ p {
 
 .achievement-card__count {
   margin: 0;
-  font-weight: 600;
-  color: var(--text);
+  font-weight: 700;
+  color: #f0f6fc;
 }
 
 .achievement-card__locked {
   margin: 0;
+  color: var(--muted);
 }
 
 .achievement-milestones {
@@ -1393,12 +1444,12 @@ p {
   gap: 0.75rem;
   padding: 0.7rem 0.85rem;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(183, 172, 149, 0.28);
-  background: rgba(255, 253, 249, 0.78);
+  border: 1px solid rgba(48, 54, 61, 0.92);
+  background: rgba(9, 13, 19, 0.78);
 }
 
 .achievement-milestone strong {
-  color: var(--text);
+  color: #f0f6fc;
 }
 
 .achievement-milestone span {
@@ -1408,11 +1459,131 @@ p {
 
 .achievement-milestone.is-unlocked {
   border-color: rgba(88, 166, 255, 0.32);
-  background: rgba(56, 139, 253, 0.12);
+  background: rgba(20, 36, 56, 0.72);
+}
+
+.achievement-card__summary-pill {
+  padding: 0.52rem 0.74rem;
+  border-radius: 12px;
+  border: 1px solid rgba(48, 54, 61, 0.92);
+  background: rgba(14, 18, 24, 0.92);
+}
+
+.achievement-card__summary-pill--locked {
+  background: rgba(48, 54, 61, 0.5);
+  border-color: rgba(99, 110, 123, 0.5);
+  color: #c9d1d9;
+}
+
+.achievement-card__summary-pill--owner {
+  background: rgba(248, 81, 73, 0.2);
+  border-color: rgba(248, 81, 73, 0.24);
+  color: #ffb3ad;
+}
+
+.achievement-card__summary-pill--admin,
+.achievement-card__summary-pill--chatterbox {
+  background: rgba(56, 139, 253, 0.18);
+  border-color: rgba(56, 139, 253, 0.24);
+  color: #9ecbff;
+}
+
+.achievement-card__summary-pill--expert {
+  background: rgba(63, 185, 80, 0.16);
+  border-color: rgba(63, 185, 80, 0.24);
+  color: #85e89d;
+}
+
+.achievement-card__summary-pill--early-bird {
+  background: rgba(210, 153, 34, 0.18);
+  border-color: rgba(210, 153, 34, 0.24);
+  color: #f2cc60;
+}
+
+.achievement-card__summary-pill--post-master {
+  background: rgba(191, 135, 255, 0.18);
+  border-color: rgba(191, 135, 255, 0.24);
+  color: #d2a8ff;
+}
+
+.achievement-card--owner {
+  border-color: rgba(248, 81, 73, 0.2);
+}
+
+.achievement-card--admin,
+.achievement-card--chatterbox {
+  border-color: rgba(56, 139, 253, 0.22);
+}
+
+.achievement-card--expert {
+  border-color: rgba(63, 185, 80, 0.22);
+}
+
+.achievement-card--early-bird {
+  border-color: rgba(210, 153, 34, 0.22);
+}
+
+.achievement-card--post-master {
+  border-color: rgba(191, 135, 255, 0.22);
+}
+
+.achievement-card--owner .achievement-card__count {
+  color: #ffb3ad;
+}
+
+.achievement-card--admin .achievement-card__count,
+.achievement-card--chatterbox .achievement-card__count {
+  color: #9ecbff;
+}
+
+.achievement-card--expert .achievement-card__count {
+  color: #85e89d;
+}
+
+.achievement-card--early-bird .achievement-card__count {
+  color: #f2cc60;
+}
+
+.achievement-card--post-master .achievement-card__count {
+  color: #d2a8ff;
 }
 
 .tag-pill--badge {
-  border-color: rgba(88, 166, 255, 0.22);
+  border-color: rgba(48, 54, 61, 0.92);
+}
+
+.badge-chip {
+  padding: 0.52rem 0.74rem;
+  border-radius: 12px;
+  background: rgba(12, 17, 23, 0.82);
+  color: #c9d1d9;
+  font-weight: 600;
+}
+
+.badge-chip.tag-pill--owner {
+  background: rgba(248, 81, 73, 0.14);
+  border-color: rgba(248, 81, 73, 0.22);
+}
+
+.badge-chip.tag-pill--admin,
+.badge-chip.tag-pill--chatterbox {
+  background: rgba(56, 139, 253, 0.14);
+  border-color: rgba(56, 139, 253, 0.22);
+}
+
+.badge-chip.tag-pill--expert {
+  background: rgba(63, 185, 80, 0.12);
+  border-color: rgba(63, 185, 80, 0.22);
+}
+
+.badge-chip.tag-pill--early-bird {
+  background: rgba(210, 153, 34, 0.14);
+  border-color: rgba(210, 153, 34, 0.22);
+}
+
+.badge-chip.tag-pill--post-master {
+  background: rgba(191, 135, 255, 0.14);
+  border-color: rgba(191, 135, 255, 0.22);
 }
 
 .tag-pill--owner {
@@ -2029,6 +2200,18 @@ textarea,
 .live-chat__bubble,
 .live-chat__empty {
   border-color: var(--line);
+}
+
+.social-chip--profile {
+  background: rgba(11, 15, 21, 0.82);
+  background-color: rgba(11, 15, 21, 0.82);
+  border-color: rgba(48, 54, 61, 0.94);
+}
+
+.social-chip--profile:hover {
+  border-color: rgba(88, 166, 255, 0.32);
+  background: rgba(16, 22, 31, 0.96);
+  background-color: rgba(16, 22, 31, 0.96);
 }
 
 .home-category-count {
