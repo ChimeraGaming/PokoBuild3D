@@ -1,8 +1,135 @@
 import { escapeHtml } from './dom.js'
 
-export var MANAGEABLE_SPECIAL_TAG_OPTIONS = ['Owner', 'Site Admin', 'Community Expert']
-export var AUTOMATIC_SPECIAL_TAG_OPTIONS = ['Early Bird']
-export var SPECIAL_TAG_OPTIONS = MANAGEABLE_SPECIAL_TAG_OPTIONS.concat(AUTOMATIC_SPECIAL_TAG_OPTIONS)
+export var SPECIAL_TAG_OPTIONS = ['Owner', 'Site Admin', 'Community Expert', 'Early Bird']
+export var ASSIGNABLE_SPECIAL_TAG_OPTIONS = ['Owner', 'Site Admin', 'Community Expert']
+
+var ROMAN_LEVELS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+var POST_MASTER_LEVELS = [10, 100, 1000, 10000]
+var CHATTERBOX_LEVELS = [100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000, 1000000000000, 1000000000000000]
+
+var SPECIAL_BADGE_DEFINITIONS = {
+  Owner: {
+    key: 'owner',
+    label: 'Owner',
+    family: 'owner',
+    tone: 'owner',
+    description: 'Given to the site owner.'
+  },
+  'Site Admin': {
+    key: 'site-admin',
+    label: 'Site Admin',
+    family: 'site-admin',
+    tone: 'admin',
+    description: 'Assigned by the owner to help manage the site.'
+  },
+  'Community Expert': {
+    key: 'community-expert',
+    label: 'Community Expert',
+    family: 'community-expert',
+    tone: 'expert',
+    description: 'Assigned by the owner for trusted community help.'
+  },
+  'Early Bird': {
+    key: 'early-bird',
+    label: 'Early Bird',
+    family: 'early-bird',
+    tone: 'early-bird',
+    description: 'Awarded to the first 100 verified accounts.'
+  }
+}
+
+function createDefaultBadge(definition) {
+  return {
+    key: definition.key,
+    label: definition.label,
+    family: definition.family,
+    tone: definition.tone,
+    description: definition.description
+  }
+}
+
+function coerceCount(value) {
+  return Math.max(0, Number(value || 0))
+}
+
+function toRoman(level) {
+  return ROMAN_LEVELS[level - 1] || String(level)
+}
+
+function formatMilestone(value) {
+  if (value >= 1000000000000000) {
+    return '1 QD'
+  }
+
+  if (value >= 1000000000000) {
+    return '1 T'
+  }
+
+  if (value >= 1000000000) {
+    return '1 B'
+  }
+
+  if (value >= 1000000) {
+    return String(value / 1000000).replace(/\.0$/, '') + ' M'
+  }
+
+  if (value >= 1000) {
+    return String(value / 1000).replace(/\.0$/, '') + ' K'
+  }
+
+  return String(value)
+}
+
+function getHighestUnlockedLevel(thresholds, count) {
+  var level = 0
+
+  thresholds.forEach(function (threshold, index) {
+    if (count >= threshold) {
+      level = index + 1
+    }
+  })
+
+  return level
+}
+
+function createAchievementBadge(family, level, threshold) {
+  if (!level || !threshold) {
+    return null
+  }
+
+  if (family === 'post-master') {
+    return {
+      key: 'post-master-' + level,
+      label: 'Post Master ' + toRoman(level),
+      family: 'post-master',
+      tone: 'post-master',
+      description: 'Unlocked by publishing ' + formatMilestone(threshold) + ' builds.'
+    }
+  }
+
+  return {
+    key: 'chatterbox-' + level,
+    label: 'Chatterbox ' + toRoman(level),
+    family: 'chatterbox',
+    tone: 'chatterbox',
+    description: 'Unlocked by sending ' + formatMilestone(threshold) + ' chat messages.'
+  }
+}
+
+function createMilestones(thresholds, unlockedLevel, count, noun) {
+  return thresholds.map(function (threshold, index) {
+    var level = index + 1
+
+    return {
+      level: level,
+      label: toRoman(level),
+      target: threshold,
+      targetLabel: formatMilestone(threshold),
+      isUnlocked: level <= unlockedLevel,
+      helper: noun + ' ' + formatMilestone(threshold)
+    }
+  })
+}
 
 export function createDefaultAvatar(name) {
   var label = String(name || 'P').trim().charAt(0).toUpperCase() || 'P'
@@ -77,26 +204,16 @@ export function normalizeSpecialTags(tags) {
     })
 }
 
-export function normalizeManageableSpecialTags(tags) {
-  var allowed = new Set(MANAGEABLE_SPECIAL_TAG_OPTIONS)
-
-  return normalizeSpecialTags(tags).filter(function (tag) {
-    return allowed.has(tag)
-  })
+export function normalizeFeaturedBadgeKey(value) {
+  return String(value || '').trim().toLowerCase()
 }
 
-export function getAutomaticSpecialTags(tags) {
-  var automatic = new Set(AUTOMATIC_SPECIAL_TAG_OPTIONS)
-
-  return normalizeSpecialTags(tags).filter(function (tag) {
-    return automatic.has(tag)
+export function preserveProtectedSpecialTags(existingTags, nextTags) {
+  var preserved = normalizeSpecialTags(existingTags).filter(function (tag) {
+    return !ASSIGNABLE_SPECIAL_TAG_OPTIONS.includes(tag)
   })
-}
 
-export function mergeSpecialTags(manageableTags, automaticTags) {
-  return normalizeSpecialTags(
-    normalizeManageableSpecialTags(manageableTags).concat(getAutomaticSpecialTags(automaticTags))
-  )
+  return normalizeSpecialTags([].concat(nextTags || [], preserved))
 }
 
 export function hasSpecialTag(profile, tag) {
@@ -115,18 +232,145 @@ export function canRemoveBuild(profile, build) {
   return profile.id === build.userId || hasSpecialTag(profile, 'Owner')
 }
 
-export function renderSpecialTagChips(tags) {
-  var items = normalizeSpecialTags(tags)
+export function getUnlockedBadges(profile) {
+  var badges = normalizeSpecialTags(profile?.specialTags).map(function (tag) {
+    return createDefaultBadge(SPECIAL_BADGE_DEFINITIONS[tag])
+  })
+  var postMasterLevel = getHighestUnlockedLevel(POST_MASTER_LEVELS, coerceCount(profile?.buildCount))
+  var chatterboxLevel = getHighestUnlockedLevel(CHATTERBOX_LEVELS, coerceCount(profile?.chatCount))
+  var postMasterBadge = createAchievementBadge(
+    'post-master',
+    postMasterLevel,
+    POST_MASTER_LEVELS[postMasterLevel - 1]
+  )
+  var chatterboxBadge = createAchievementBadge(
+    'chatterbox',
+    chatterboxLevel,
+    CHATTERBOX_LEVELS[chatterboxLevel - 1]
+  )
+
+  if (postMasterBadge) {
+    badges.push(postMasterBadge)
+  }
+
+  if (chatterboxBadge) {
+    badges.push(chatterboxBadge)
+  }
+
+  return badges
+}
+
+export function getFeaturedBadge(profile) {
+  var badges = getUnlockedBadges(profile)
+  var featuredKey = normalizeFeaturedBadgeKey(profile?.featuredBadgeKey)
+
+  return (
+    badges.find(function (badge) {
+      return badge.key === featuredKey
+    }) ||
+    badges[0] ||
+    null
+  )
+}
+
+export function getBadgeCatalog(profile) {
+  var unlockedBadges = getUnlockedBadges(profile)
+  var unlockedMap = new Set(
+    unlockedBadges.map(function (badge) {
+      return badge.key
+    })
+  )
+  var postMasterLevel = getHighestUnlockedLevel(POST_MASTER_LEVELS, coerceCount(profile?.buildCount))
+  var chatterboxLevel = getHighestUnlockedLevel(CHATTERBOX_LEVELS, coerceCount(profile?.chatCount))
+
+  return [
+    {
+      key: 'post-master',
+      title: 'Post Master',
+      description: 'Publish builds to level this badge up.',
+      currentBadge:
+        createAchievementBadge(
+          'post-master',
+          postMasterLevel,
+          POST_MASTER_LEVELS[postMasterLevel - 1]
+        ) || null,
+      count: coerceCount(profile?.buildCount),
+      countLabel: String(coerceCount(profile?.buildCount)) + ' published builds',
+      milestones: createMilestones(POST_MASTER_LEVELS, postMasterLevel, profile?.buildCount, 'Publish')
+    },
+    {
+      key: 'chatterbox',
+      title: 'Chatterbox',
+      description: 'Send messages in community chat or DMs to level this badge up.',
+      currentBadge:
+        createAchievementBadge(
+          'chatterbox',
+          chatterboxLevel,
+          CHATTERBOX_LEVELS[chatterboxLevel - 1]
+        ) || null,
+      count: coerceCount(profile?.chatCount),
+      countLabel: String(coerceCount(profile?.chatCount)) + ' total messages sent',
+      milestones: createMilestones(CHATTERBOX_LEVELS, chatterboxLevel, profile?.chatCount, 'Send')
+    },
+    {
+      key: 'owner',
+      title: 'Owner',
+      description: SPECIAL_BADGE_DEFINITIONS.Owner.description,
+      currentBadge: unlockedMap.has('owner') ? createDefaultBadge(SPECIAL_BADGE_DEFINITIONS.Owner) : null,
+      countLabel: unlockedMap.has('owner') ? 'Unlocked' : 'Locked',
+      milestones: []
+    },
+    {
+      key: 'early-bird',
+      title: 'Early Bird',
+      description: SPECIAL_BADGE_DEFINITIONS['Early Bird'].description,
+      currentBadge: unlockedMap.has('early-bird')
+        ? createDefaultBadge(SPECIAL_BADGE_DEFINITIONS['Early Bird'])
+        : null,
+      countLabel: unlockedMap.has('early-bird') ? 'Unlocked' : 'Locked',
+      milestones: []
+    },
+    {
+      key: 'site-admin',
+      title: 'Site Admin',
+      description: SPECIAL_BADGE_DEFINITIONS['Site Admin'].description,
+      currentBadge: unlockedMap.has('site-admin')
+        ? createDefaultBadge(SPECIAL_BADGE_DEFINITIONS['Site Admin'])
+        : null,
+      countLabel: unlockedMap.has('site-admin') ? 'Unlocked' : 'Locked',
+      milestones: []
+    },
+    {
+      key: 'community-expert',
+      title: 'Community Expert',
+      description: SPECIAL_BADGE_DEFINITIONS['Community Expert'].description,
+      currentBadge: unlockedMap.has('community-expert')
+        ? createDefaultBadge(SPECIAL_BADGE_DEFINITIONS['Community Expert'])
+        : null,
+      countLabel: unlockedMap.has('community-expert') ? 'Unlocked' : 'Locked',
+      milestones: []
+    }
+  ]
+}
+
+export function renderBadgeChips(badges) {
+  var items = Array.isArray(badges) ? badges.filter(Boolean) : []
 
   if (!items.length) {
-    return '<p class="muted">No special tags yet.</p>'
+    return ''
   }
 
   return (
     '<div class="tag-row">' +
     items
-      .map(function (tag) {
-        return '<span class="tag-pill">' + escapeHtml(tag) + '</span>'
+      .map(function (badge) {
+        return (
+          '<span class="tag-pill tag-pill--badge tag-pill--' +
+          escapeHtml(badge.tone || 'default') +
+          '">' +
+          escapeHtml(badge.label) +
+          '</span>'
+        )
       })
       .join('') +
     '</div>'

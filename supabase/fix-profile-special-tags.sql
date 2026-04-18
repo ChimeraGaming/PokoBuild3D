@@ -1,6 +1,9 @@
 alter table public.profiles
 add column if not exists special_tags_json jsonb not null default '[]'::jsonb;
 
+alter table public.profiles
+add column if not exists featured_badge_key text not null default '';
+
 update public.profiles
 set special_tags_json = '[]'::jsonb
 where special_tags_json is null;
@@ -120,6 +123,14 @@ begin
     select distinct value as tag
     from jsonb_array_elements_text(coalesce(next_tags, '[]'::jsonb))
     where value in ('Owner', 'Site Admin', 'Community Expert')
+    union
+    select 'Early Bird'
+    where exists (
+      select 1
+      from public.profiles
+      where id = target_profile_id
+        and coalesce(special_tags_json, '[]'::jsonb) @> '["Early Bird"]'::jsonb
+    )
   ) as filtered_tags;
 
   update public.profiles

@@ -4,12 +4,13 @@ import { normalizeBuildRecord, createBuildFromDraft } from './build-model.js'
 import { applyBuildFilters } from './filter-builds.js'
 import { normalizeUsername, slugify, uniqueId } from './format.js'
 import {
+  ASSIGNABLE_SPECIAL_TAG_OPTIONS,
   canAssignSpecialTags,
   canRemoveBuild,
-  getAutomaticSpecialTags,
-  mergeSpecialTags,
+  normalizeFeaturedBadgeKey,
   normalizeSocials,
-  normalizeSpecialTags
+  normalizeSpecialTags,
+  preserveProtectedSpecialTags
 } from './profile.js'
 import { fileToDataUrl, readStorage, removeStorage, writeStorage } from './storage.js'
 
@@ -20,10 +21,9 @@ export var STORAGE_KEYS = {
   builds: 'pokobuilds3d:builds',
   favorites: 'pokobuilds3d:favorites',
   progress: 'pokobuilds3d:progress',
-  chatMessages: 'pokobuilds3d:chat-messages'
+  chatMessages: 'pokobuilds3d:chat-messages',
+  directMessages: 'pokobuilds3d:direct-messages'
 }
-
-var CHAT_LOG_LIMIT = 100
 
 function clone(value) {
   return structuredClone(value)
@@ -33,10 +33,21 @@ function createGuestProgressKey() {
   return 'guest-local'
 }
 
-function stripSeededChatMessages(messages) {
-  return (messages || []).filter(function (message) {
-    return message?.id !== 'chat-seed-1' && message?.id !== 'chat-seed-2'
-  })
+function seedChatMessages() {
+  return [
+    {
+      id: 'chat-seed-1',
+      userId: 'profile-elm',
+      text: 'Welcome to the builder chat. Share where your latest build is going and what materials are slowing you down.',
+      createdAt: '2026-04-15T18:20:00.000Z'
+    },
+    {
+      id: 'chat-seed-2',
+      userId: 'profile-wren',
+      text: 'If you are posting an online creation, remember to credit the original owner in the tags before you publish.',
+      createdAt: '2026-04-15T18:24:00.000Z'
+    }
+  ]
 }
 
 export function ensureLocalSeed() {
@@ -71,16 +82,12 @@ export function ensureLocalSeed() {
     writeStorage(STORAGE_KEYS.progress, [])
   }
 
-  var storedChatMessages = readStorage(STORAGE_KEYS.chatMessages, null)
+  if (!readStorage(STORAGE_KEYS.chatMessages, null)) {
+    writeStorage(STORAGE_KEYS.chatMessages, seedChatMessages())
+  }
 
-  if (!storedChatMessages) {
-    writeStorage(STORAGE_KEYS.chatMessages, [])
-  } else {
-    var cleanedChatMessages = stripSeededChatMessages(storedChatMessages)
-
-    if (cleanedChatMessages.length !== storedChatMessages.length) {
-      writeStorage(STORAGE_KEYS.chatMessages, cleanedChatMessages)
-    }
+  if (!readStorage(STORAGE_KEYS.directMessages, null)) {
+    writeStorage(STORAGE_KEYS.directMessages, [])
   }
 }
 
@@ -106,14 +113,6 @@ function applyOwnerBootstrap(tags, username) {
   }
 
   return normalizeSpecialTags(nextTags)
-}
-
-function canAwardEarlyBird(profiles) {
-  return (
-    profiles.filter(function (profile) {
-      return getAutomaticSpecialTags(profile.specialTags).includes('Early Bird')
-    }).length < 100
-  )
 }
 
 function findProfileByUsername(profiles, username) {
@@ -146,7 +145,18 @@ function decorateBuild(build, profiles, favorites) {
   return normalized
 }
 
-function decorateProfile(profile, builds, favorites) {
+function countProfileMessages(profileId, chatMessages, directMessages) {
+  var publicCount = (chatMessages || []).filter(function (message) {
+    return message.userId === profileId
+  }).length
+  var directCount = (directMessages || []).filter(function (message) {
+    return message.senderId === profileId
+  }).length
+
+  return publicCount + directCount
+}
+
+function decorateProfile(profile, builds, favorites, chatMessages, directMessages) {
   return {
     id: profile.id,
     username: profile.username,
@@ -155,10 +165,12 @@ function decorateProfile(profile, builds, favorites) {
     avatarUrl: profile.avatarUrl,
     socials: normalizeSocials(profile.socials),
     specialTags: applyOwnerBootstrap(profile.specialTags, profile.username),
+    featuredBadgeKey: normalizeFeaturedBadgeKey(profile.featuredBadgeKey),
     createdAt: profile.createdAt,
     buildCount: builds.filter(function (build) {
       return build.userId === profile.id && build.isPublished
     }).length,
+    chatCount: countProfileMessages(profile.id, chatMessages, directMessages),
     favoritesCount: favorites.filter(function (favorite) {
       return favorite.userId === profile.id
     }).length
@@ -199,6 +211,28 @@ function decorateChatMessage(message, profiles) {
   }
 }
 
+function decorateDirectMessage(message, profiles) {
+  var author = profiles.find(function (profile) {
+    return profile.id === message.senderId
+  })
+
+  return {
+    id: message.id,
+    userId: message.senderId,
+    recipientId: message.recipientId,
+    text: message.text,
+    createdAt: message.createdAt,
+    author: author
+      ? {
+          id: author.id,
+          username: author.username,
+          displayName: author.displayName,
+          avatarUrl: author.avatarUrl
+        }
+      : null
+  }
+}
+
 export function createLocalApi() {
   ensureLocalSeed()
 
@@ -226,7 +260,9 @@ export function createLocalApi() {
             profile: decorateProfile(
               profile,
               readLocalCollection(STORAGE_KEYS.builds),
-              readLocalCollection(STORAGE_KEYS.favorites)
+              readLocalCollection(STORAGE_KEYS.favorites),
+              readLocalCollection(STORAGE_KEYS.chatMessages),
+              readLocalCollection(STORAGE_KEYS.directMessages)
             )
           }
         : null
@@ -264,10 +300,8 @@ export function createLocalApi() {
         bio: '',
         avatarUrl: '',
         socials: [],
-        specialTags: mergeSpecialTags(
-          applyOwnerBootstrap([], username),
-          canAwardEarlyBird(profiles) ? ['Early Bird'] : []
-        ),
+        specialTags: applyOwnerBootstrap([], username),
+        featuredBadgeKey: '',
         createdAt: new Date().toISOString()
       }
       var user = {
@@ -321,6 +355,8 @@ export function createLocalApi() {
     async listBuilds(options) {
       var profiles = readLocalCollection(STORAGE_KEYS.profiles)
       var favorites = readLocalCollection(STORAGE_KEYS.favorites)
+      var chatMessages = readLocalCollection(STORAGE_KEYS.chatMessages)
+      var directMessages = readLocalCollection(STORAGE_KEYS.directMessages)
       var builds = readLocalCollection(STORAGE_KEYS.builds)
         .map(function (build) {
           return decorateBuild(build, profiles, favorites)
@@ -377,19 +413,40 @@ export function createLocalApi() {
       var profiles = readLocalCollection(STORAGE_KEYS.profiles)
       var builds = readLocalCollection(STORAGE_KEYS.builds)
       var favorites = readLocalCollection(STORAGE_KEYS.favorites)
+      var chatMessages = readLocalCollection(STORAGE_KEYS.chatMessages)
+      var directMessages = readLocalCollection(STORAGE_KEYS.directMessages)
       var profile = findProfileByUsername(profiles, username)
 
-      return profile ? decorateProfile(profile, builds, favorites) : null
+      return profile ? decorateProfile(profile, builds, favorites, chatMessages, directMessages) : null
     },
     async getProfileById(profileId) {
       var profiles = readLocalCollection(STORAGE_KEYS.profiles)
       var builds = readLocalCollection(STORAGE_KEYS.builds)
       var favorites = readLocalCollection(STORAGE_KEYS.favorites)
+      var chatMessages = readLocalCollection(STORAGE_KEYS.chatMessages)
+      var directMessages = readLocalCollection(STORAGE_KEYS.directMessages)
       var profile = profiles.find(function (candidate) {
         return candidate.id === profileId
       })
 
-      return profile ? decorateProfile(profile, builds, favorites) : null
+      return profile ? decorateProfile(profile, builds, favorites, chatMessages, directMessages) : null
+    },
+    async listProfiles() {
+      var profiles = readLocalCollection(STORAGE_KEYS.profiles)
+      var builds = readLocalCollection(STORAGE_KEYS.builds)
+      var favorites = readLocalCollection(STORAGE_KEYS.favorites)
+      var chatMessages = readLocalCollection(STORAGE_KEYS.chatMessages)
+      var directMessages = readLocalCollection(STORAGE_KEYS.directMessages)
+
+      return profiles
+        .map(function (profile) {
+          return decorateProfile(profile, builds, favorites, chatMessages, directMessages)
+        })
+        .sort(function (left, right) {
+          var leftName = left.displayName || left.username || ''
+          var rightName = right.displayName || right.username || ''
+          return leftName.localeCompare(rightName)
+        })
     },
     async updateProfile(profileId, values) {
       var profiles = readLocalCollection(STORAGE_KEYS.profiles)
@@ -424,7 +481,11 @@ export function createLocalApi() {
         bio: values.bio,
         avatarUrl: values.avatarUrl || profiles[profileIndex].avatarUrl,
         socials: normalizeSocials(values.socials),
-        specialTags: applyOwnerBootstrap(profiles[profileIndex].specialTags, username)
+        specialTags: applyOwnerBootstrap(profiles[profileIndex].specialTags, username),
+        featuredBadgeKey:
+          values.featuredBadgeKey === undefined
+            ? normalizeFeaturedBadgeKey(profiles[profileIndex].featuredBadgeKey)
+            : normalizeFeaturedBadgeKey(values.featuredBadgeKey)
       }
 
       writeLocalCollection(STORAGE_KEYS.profiles, profiles)
@@ -446,9 +507,11 @@ export function createLocalApi() {
 
       profiles[profileIndex] = {
         ...profiles[profileIndex],
-        specialTags: mergeSpecialTags(
-          specialTags,
-          getAutomaticSpecialTags(profiles[profileIndex].specialTags)
+        specialTags: preserveProtectedSpecialTags(
+          profiles[profileIndex].specialTags,
+          (specialTags || []).filter(function (tag) {
+            return ASSIGNABLE_SPECIAL_TAG_OPTIONS.includes(tag)
+          })
         )
       }
 
@@ -585,14 +648,14 @@ export function createLocalApi() {
       return fileToDataUrl(file)
     },
     async listChatMessages() {
-      var profiles = readLocalCollection(STORAGE_KEYS.profiles)
+      var profiles = await this.listProfiles()
       var messages = readLocalCollection(STORAGE_KEYS.chatMessages)
 
       return messages
         .sort(function (left, right) {
           return new Date(left.createdAt) - new Date(right.createdAt)
         })
-        .slice(-CHAT_LOG_LIMIT)
+        .slice(-100)
         .map(function (message) {
           return decorateChatMessage(message, profiles)
         })
@@ -617,13 +680,94 @@ export function createLocalApi() {
       }
 
       messages.push(nextMessage)
-      writeLocalCollection(STORAGE_KEYS.chatMessages, messages.slice(-CHAT_LOG_LIMIT))
+      writeLocalCollection(STORAGE_KEYS.chatMessages, messages)
 
-      return decorateChatMessage(nextMessage, readLocalCollection(STORAGE_KEYS.profiles))
+      return decorateChatMessage(nextMessage, await this.listProfiles())
+    },
+    async listDirectMessages(recipientId, sessionProfile) {
+      if (!sessionProfile) {
+        throw new Error('Sign in to use direct messages.')
+      }
+
+      if (!recipientId) {
+        return []
+      }
+
+      var profiles = await this.listProfiles()
+      var messages = readLocalCollection(STORAGE_KEYS.directMessages)
+
+      return messages
+        .filter(function (message) {
+          return (
+            (message.senderId === sessionProfile.id && message.recipientId === recipientId) ||
+            (message.senderId === recipientId && message.recipientId === sessionProfile.id)
+          )
+        })
+        .sort(function (left, right) {
+          return new Date(left.createdAt) - new Date(right.createdAt)
+        })
+        .map(function (message) {
+          return decorateDirectMessage(message, profiles)
+        })
+    },
+    async sendDirectMessage(recipientId, text, sessionProfile) {
+      var messageText = String(text || '').trim()
+      var profiles = await this.listProfiles()
+
+      if (!sessionProfile) {
+        throw new Error('Sign in to use direct messages.')
+      }
+
+      if (!recipientId) {
+        throw new Error('Choose a builder before sending a DM.')
+      }
+
+      if (recipientId === sessionProfile.id) {
+        throw new Error('Choose another builder for a DM.')
+      }
+
+      if (
+        !profiles.some(function (profile) {
+          return profile.id === recipientId
+        })
+      ) {
+        throw new Error('That builder could not be found.')
+      }
+
+      if (!messageText) {
+        throw new Error('Write a message before sending it.')
+      }
+
+      var messages = readLocalCollection(STORAGE_KEYS.directMessages)
+      var nextMessage = {
+        id: uniqueId('dm'),
+        senderId: sessionProfile.id,
+        recipientId: recipientId,
+        text: messageText,
+        createdAt: new Date().toISOString()
+      }
+
+      messages.push(nextMessage)
+      writeLocalCollection(STORAGE_KEYS.directMessages, messages)
+
+      return decorateDirectMessage(nextMessage, profiles)
     },
     subscribeToChatMessages(callback) {
       function handleStorage(event) {
         if (event.key === STORAGE_KEYS.chatMessages) {
+          callback()
+        }
+      }
+
+      window.addEventListener('storage', handleStorage)
+
+      return function cleanup() {
+        window.removeEventListener('storage', handleStorage)
+      }
+    },
+    subscribeToDirectMessages(profileId, callback) {
+      function handleStorage(event) {
+        if (event.key === STORAGE_KEYS.directMessages) {
           callback()
         }
       }

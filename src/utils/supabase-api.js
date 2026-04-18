@@ -8,12 +8,82 @@ import { applyBuildFilters } from './filter-builds.js'
 import { normalizeUsername, slugify, uniqueId } from './format.js'
 import {
   canAssignSpecialTags,
-  normalizeManageableSpecialTags,
+  normalizeFeaturedBadgeKey,
   normalizeSocials,
   normalizeSpecialTags
 } from './profile.js'
 
-var CHAT_LOG_LIMIT = 100
+function mapProfileRow(row, stats) {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    bio: row.bio,
+    avatarUrl: row.avatar_url,
+    socials: normalizeSocials(row.socials_json),
+    specialTags: normalizeSpecialTags(row.special_tags_json),
+    featuredBadgeKey: normalizeFeaturedBadgeKey(row.featured_badge_key),
+    createdAt: row.created_at,
+    buildCount: Number(stats?.buildCount || 0),
+    chatCount: Number(stats?.chatCount || 0),
+    favoritesCount: Number(stats?.favoritesCount || 0)
+  }
+}
+
+function isMissingTableError(error, tableName) {
+  return new RegExp(tableName, 'i').test(String(error?.message || ''))
+}
+
+async function fetchProfileStats(profileId) {
+  var supabase = getSupabaseClient()
+  var results = await Promise.all([
+    supabase
+      .from('builds')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profileId)
+      .eq('is_published', true),
+    supabase
+      .from('favorites')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profileId),
+    supabase
+      .from('chat_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profileId),
+    supabase
+      .from('direct_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('sender_id', profileId)
+  ])
+
+  if (results[0].error) {
+    throw results[0].error
+  }
+
+  if (results[1].error) {
+    throw results[1].error
+  }
+
+  if (results[2].error && !isMissingTableError(results[2].error, 'chat_messages')) {
+    throw results[2].error
+  }
+
+  if (results[3].error && !isMissingTableError(results[3].error, 'direct_messages')) {
+    throw results[3].error
+  }
+
+  return {
+    buildCount: results[0].count || 0,
+    favoritesCount: results[1].count || 0,
+    chatCount:
+      (results[2].error && isMissingTableError(results[2].error, 'chat_messages')
+        ? 0
+        : results[2].count || 0) +
+      (results[3].error && isMissingTableError(results[3].error, 'direct_messages')
+        ? 0
+        : results[3].count || 0)
+  }
+}
 
 async function fetchSupabaseAuthor(profileId) {
   var supabase = getSupabaseClient()
@@ -27,18 +97,11 @@ async function fetchSupabaseAuthor(profileId) {
     throw response.error
   }
 
-  return response.data
-    ? {
-        id: response.data.id,
-        username: response.data.username,
-        displayName: response.data.display_name,
-        bio: response.data.bio,
-        avatarUrl: response.data.avatar_url,
-        socials: normalizeSocials(response.data.socials_json),
-        specialTags: normalizeSpecialTags(response.data.special_tags_json),
-        createdAt: response.data.created_at
-      }
-    : null
+  if (!response.data) {
+    return null
+  }
+
+  return mapProfileRow(response.data, await fetchProfileStats(response.data.id))
 }
 
 async function fetchBuildRelated(buildId) {
@@ -154,6 +217,72 @@ async function decorateChatMessages(rows) {
       }
     })
   )
+}
+
+async function decorateDirectMessages(rows) {
+  var authorCache = {}
+
+  return Promise.all(
+    (rows || []).map(async function (row) {
+      if (!authorCache[row.sender_id]) {
+        authorCache[row.sender_id] = fetchSupabaseAuthor(row.sender_id)
+      }
+
+      var author = await authorCache[row.sender_id]
+
+      return {
+        id: row.id,
+        userId: row.sender_id,
+        recipientId: row.recipient_id,
+        text: row.message_text,
+        createdAt: row.created_at,
+        author: author
+      }
+    })
+  )
+}
+
+function normalizeDirectMessageError(error) {
+  var message = String(error?.message || '')
+
+  if (/direct_messages/i.test(message)) {
+    return new Error('Direct messages need the new chat SQL update first.')
+  }
+
+  return error
+}
+
+function findUnsupportedBuildColumn(error) {
+  var message = String(error?.message || '')
+  var supportedFallbackColumns = ['asset_kind', 'model_source', 'resource_links_json']
+
+  return (
+    supportedFallbackColumns.find(function (column) {
+      return new RegExp(column, 'i').test(message)
+    }) || ''
+  )
+}
+
+async function upsertBuildRowWithFallback(supabase, buildRow) {
+  var payload = { ...buildRow }
+  var strippedColumns = new Set()
+
+  while (true) {
+    var response = await supabase.from('builds').upsert(payload)
+
+    if (!response.error) {
+      return response
+    }
+
+    var unsupportedColumn = findUnsupportedBuildColumn(response.error)
+
+    if (!unsupportedColumn || strippedColumns.has(unsupportedColumn)) {
+      throw response.error
+    }
+
+    strippedColumns.add(unsupportedColumn)
+    delete payload[unsupportedColumn]
+  }
 }
 
 export function createSupabaseApi() {
@@ -343,7 +472,7 @@ export function createSupabaseApi() {
       var supabase = getSupabaseClient()
       var nextBuild = createBuildFromDraft(input, sessionProfile.id)
       var rows = buildToSupabaseRows(nextBuild)
-      var upsert = await supabase.from('builds').upsert(rows.build)
+      var upsert = await upsertBuildRowWithFallback(supabase, rows.build)
 
       if (upsert.error) {
         throw upsert.error
@@ -440,50 +569,56 @@ export function createSupabaseApi() {
         return null
       }
 
-      var builds = await this.listBuilds({
-        includeDrafts: true,
-        profileId: profileId
-      })
-      var favoriteResponse = await supabase
-        .from('favorites')
+      return mapProfileRow(response.data, await fetchProfileStats(profileId))
+    },
+    async listProfiles() {
+      var supabase = getSupabaseClient()
+      var response = await supabase
+        .from('profiles')
         .select('*')
-        .eq('user_id', profileId)
+        .order('display_name', { ascending: true })
 
-      if (favoriteResponse.error) {
-        throw favoriteResponse.error
+      if (response.error) {
+        throw response.error
       }
 
-      return {
-        id: response.data.id,
-        username: response.data.username,
-        displayName: response.data.display_name,
-        bio: response.data.bio,
-        avatarUrl: response.data.avatar_url,
-        socials: normalizeSocials(response.data.socials_json),
-        specialTags: normalizeSpecialTags(response.data.special_tags_json),
-        createdAt: response.data.created_at,
-        buildCount: builds.filter(function (build) {
-          return build.isPublished
-        }).length,
-        favoritesCount: (favoriteResponse.data || []).length
-      }
+      return (response.data || []).map(function (row) {
+        return {
+          id: row.id,
+          username: row.username,
+          displayName: row.display_name,
+          bio: row.bio,
+          avatarUrl: row.avatar_url,
+          socials: normalizeSocials(row.socials_json),
+          specialTags: normalizeSpecialTags(row.special_tags_json),
+          featuredBadgeKey: normalizeFeaturedBadgeKey(row.featured_badge_key),
+          createdAt: row.created_at
+        }
+      })
     },
     async updateProfile(profileId, values) {
       var supabase = getSupabaseClient()
       var username = normalizeUsername(values.username)
+      var nextPayload
 
       if (!username) {
         throw new Error('Username is required.')
       }
 
-      var response = await supabase.from('profiles').upsert({
+      nextPayload = {
         id: profileId,
         username: username,
         display_name: values.displayName,
         bio: values.bio,
         avatar_url: values.avatarUrl,
         socials_json: normalizeSocials(values.socials)
-      })
+      }
+
+      if (values.featuredBadgeKey !== undefined) {
+        nextPayload.featured_badge_key = normalizeFeaturedBadgeKey(values.featuredBadgeKey)
+      }
+
+      var response = await supabase.from('profiles').upsert(nextPayload)
 
       if (response.error) {
         throw response.error
@@ -500,7 +635,7 @@ export function createSupabaseApi() {
 
       var response = await supabase.rpc('set_profile_special_tags', {
         target_profile_id: profileId,
-        next_tags: normalizeManageableSpecialTags(specialTags)
+        next_tags: normalizeSpecialTags(specialTags)
       })
 
       if (response.error) {
@@ -688,7 +823,7 @@ export function createSupabaseApi() {
         .from('chat_messages')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(CHAT_LOG_LIMIT)
+        .limit(100)
 
       if (response.error) {
         throw response.error
@@ -725,6 +860,77 @@ export function createSupabaseApi() {
 
       return (await decorateChatMessages([response.data]))[0]
     },
+    async listDirectMessages(recipientId, sessionProfile) {
+      var supabase = getSupabaseClient()
+
+      if (!sessionProfile) {
+        throw new Error('Sign in to use direct messages.')
+      }
+
+      if (!recipientId) {
+        return []
+      }
+
+      var response = await supabase
+        .from('direct_messages')
+        .select('*')
+        .or(
+          'and(sender_id.eq.' +
+            sessionProfile.id +
+            ',recipient_id.eq.' +
+            recipientId +
+            '),and(sender_id.eq.' +
+            recipientId +
+            ',recipient_id.eq.' +
+            sessionProfile.id +
+            ')'
+        )
+        .order('created_at', { ascending: true })
+
+      if (response.error) {
+        throw normalizeDirectMessageError(response.error)
+      }
+
+      return decorateDirectMessages(response.data || [])
+    },
+    async sendDirectMessage(recipientId, text, sessionProfile) {
+      var supabase = getSupabaseClient()
+      var messageText = String(text || '').trim()
+
+      if (!sessionProfile) {
+        throw new Error('Sign in to use direct messages.')
+      }
+
+      if (!recipientId) {
+        throw new Error('Choose a builder before sending a DM.')
+      }
+
+      if (recipientId === sessionProfile.id) {
+        throw new Error('Choose another builder for a DM.')
+      }
+
+      if (!messageText) {
+        throw new Error('Write a message before sending it.')
+      }
+
+      var response = await supabase
+        .from('direct_messages')
+        .insert({
+          id: uniqueId('dm'),
+          sender_id: sessionProfile.id,
+          recipient_id: recipientId,
+          message_text: messageText,
+          created_at: new Date().toISOString()
+        })
+        .select('*')
+        .single()
+
+      if (response.error) {
+        throw normalizeDirectMessageError(response.error)
+      }
+
+      return (await decorateDirectMessages([response.data]))[0]
+    },
     subscribeToChatMessages(callback) {
       var supabase = getSupabaseClient()
       var channel = supabase
@@ -738,6 +944,31 @@ export function createSupabaseApi() {
           },
           function () {
             callback()
+          }
+        )
+        .subscribe()
+
+      return function cleanup() {
+        supabase.removeChannel(channel)
+      }
+    },
+    subscribeToDirectMessages(profileId, callback) {
+      var supabase = getSupabaseClient()
+      var channel = supabase
+        .channel('direct_messages:' + profileId)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'direct_messages'
+          },
+          function (payload) {
+            var row = payload.new?.sender_id ? payload.new : payload.old || {}
+
+            if (row.sender_id === profileId || row.recipient_id === profileId) {
+              callback()
+            }
           }
         )
         .subscribe()

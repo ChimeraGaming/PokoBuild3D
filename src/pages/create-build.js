@@ -245,6 +245,40 @@ function resolveModelSource(draft) {
   return resolveAssetKind(draft) === 'model' ? 'editor' : resolveAssetKind(draft)
 }
 
+function isKnownAssetKind(value) {
+  return ASSET_KIND_OPTIONS.some(function (option) {
+    return option.value === value
+  })
+}
+
+function isKnownModelSource(value) {
+  return MODEL_SOURCE_OPTIONS.some(function (option) {
+    return option.value === value
+  })
+}
+
+function applyCreateQueryPreset(draft, query, api) {
+  var presetAssetKind = isKnownAssetKind(query?.assetKind) ? query.assetKind : ''
+  var presetModelSource = isKnownModelSource(query?.modelSource) ? query.modelSource : ''
+
+  if (!presetAssetKind && !presetModelSource) {
+    return draft
+  }
+
+  var assetKind = presetAssetKind || resolveAssetKind(draft)
+  var modelSource =
+    assetKind === 'model'
+      ? presetModelSource || resolveModelSource({ ...draft, assetKind: assetKind })
+      : assetKind
+
+  return api.createDraftFromTemplate({
+    ...draft,
+    assetKind: assetKind,
+    modelSource: modelSource,
+    modelType: assetKind === 'model' ? (modelSource === 'upload' ? 'viewer' : 'editor') : assetKind
+  })
+}
+
 function renderLocationOptions(selectedValue) {
   return LOCATION_SUGGESTIONS.map(function (location) {
     return (
@@ -261,17 +295,8 @@ function renderLocationOptions(selectedValue) {
 
 function buildGalleryEntries(urls, assetKind) {
   var config = IMAGE_POST_CONFIG[assetKind]
-  var uniqueUrls = []
 
-  ;(urls || []).forEach(function (url) {
-    var normalizedUrl = String(url || '').trim()
-
-    if (normalizedUrl && !uniqueUrls.includes(normalizedUrl)) {
-      uniqueUrls.push(normalizedUrl)
-    }
-  })
-
-  return uniqueUrls.map(function (url, index) {
+  return urls.map(function (url, index) {
     return {
       id: 'gallery-' + index,
       label:
@@ -285,18 +310,6 @@ function buildGalleryEntries(urls, assetKind) {
       imageUrl: url
     }
   })
-}
-
-function appendGalleryEntries(entries, urls, assetKind) {
-  var existingUrls = Array.isArray(entries)
-    ? entries
-        .map(function (entry) {
-          return entry.imageUrl
-        })
-        .filter(Boolean)
-    : []
-
-  return buildGalleryEntries(existingUrls.concat(Array.from(urls || [])), assetKind)
 }
 
 function getOptionDetails(options, selectedValue) {
@@ -338,21 +351,23 @@ function renderTemplateSizeOptions(selectedValue) {
 }
 
 function ensureImageGallery(assetKind, thumbnailUrl, imageGallery) {
-  var urls = []
+  var items = Array.isArray(imageGallery) ? imageGallery.slice() : []
+  var mainLabel = IMAGE_POST_CONFIG[assetKind]?.mainGalleryLabel || 'Main image'
 
-  if (thumbnailUrl) {
-    urls.push(thumbnailUrl)
-  }
-
-  if (Array.isArray(imageGallery)) {
-    imageGallery.forEach(function (entry) {
-      if (entry?.imageUrl) {
-        urls.push(entry.imageUrl)
-      }
+  if (
+    thumbnailUrl &&
+    !items.some(function (entry) {
+      return entry.imageUrl === thumbnailUrl
+    })
+  ) {
+    items.unshift({
+      id: 'gallery-main',
+      label: mainLabel,
+      imageUrl: thumbnailUrl
     })
   }
 
-  return buildGalleryEntries(urls, assetKind)
+  return items
 }
 
 function createTagPreview(tags) {
@@ -442,7 +457,6 @@ function renderImageAssetCard(assetKind, draft, isVisible) {
     assetKind +
     'Gallery" type="file" accept="image/*" multiple /></label>' +
     '</div>' +
-    '<p class="muted compact-help">You can add more than one photo here. If you skip the cover image, the first gallery photo becomes the main post image.</p>' +
     (config.linksLabel
       ? '<label>' +
         config.linksLabel +
@@ -464,7 +478,8 @@ function renderImageAssetCard(assetKind, draft, isVisible) {
 async function serializeDraft(form, context) {
   var data = new FormData(form)
   var sessionProfile = context.session.profile
-  var previousDraft = loadCreateDraft() || context.api.createDraftFromTemplate({})
+  var previousDraft =
+    context.createDraft || loadCreateDraft() || context.api.createDraftFromTemplate({})
   var assetKind = data.get('assetKind') || 'model'
   var modelSource = assetKind === 'model' ? data.get('modelSource') || 'editor' : assetKind
   var templateSize = normalizeTemplateSize(data.get('templateSize'), previousDraft.editorDataJson?.grid)
@@ -513,7 +528,7 @@ async function serializeDraft(form, context) {
 
   if (galleryFiles && galleryFiles.length) {
     var uploadedGallery = await context.api.uploadGalleryFiles(galleryFiles, sessionProfile)
-    galleryEntries = appendGalleryEntries(galleryEntries, uploadedGallery, assetKind)
+    galleryEntries = buildGalleryEntries(uploadedGallery, assetKind)
   }
 
   if (!thumbnailUrl && galleryEntries.length) {
@@ -569,7 +584,7 @@ async function serializeDraft(form, context) {
   return {
     ...previousDraft,
     title: String(data.get('title') || '').trim(),
-    slug: String(data.get('slug') || '').trim(),
+    slug: '',
     description: String(data.get('description') || '').trim(),
     biome: location,
     category: assetKind,
@@ -601,7 +616,11 @@ export var createBuildPage = {
   title: 'Create Build',
   requiresAuth: true,
   async render(context) {
-    var draft = loadCreateDraft() || context.api.createDraftFromTemplate({})
+    var draft = applyCreateQueryPreset(
+      loadCreateDraft() || context.api.createDraftFromTemplate({}),
+      context.query,
+      context.api
+    )
     var assetKind = resolveAssetKind(draft)
     var modelSource = resolveModelSource(draft)
     var originType = draft.originType || 'my'
@@ -630,7 +649,7 @@ export var createBuildPage = {
       '<form id="create-build-form" class="create-flow-grid">' +
       '<article class="card stack create-step-card create-choice-card">' +
       '<span class="eyebrow">Step 1</span>' +
-      '<h2>Which model are you uploading</h2>' +
+      '<h2>What are you posting</h2>' +
       '<label class="dropdown-field">Post type<select id="create-asset-kind" name="assetKind">' +
       renderAssetKindChoices(assetKind) +
       '</select></label>' +
@@ -641,14 +660,9 @@ export var createBuildPage = {
       '<article class="card stack create-step-card create-details-card">' +
       '<span class="eyebrow">Step 2</span>' +
       '<h2>Build details</h2>' +
-      '<div class="compact-field-grid">' +
       '<label>Title<input name="title" type="text" required value="' +
       escapeHtml(draft.title || '') +
       '" placeholder="Garden lattice" /></label>' +
-      '<label>Slug<input name="slug" type="text" value="' +
-      escapeHtml(draft.slug || '') +
-      '" placeholder="garden-lattice" /></label>' +
-      '</div>' +
       '<label>Description<textarea name="description" rows="4" placeholder="Notes, build tips, and placement advice.">' +
       escapeHtml(draft.description || '') +
       '</textarea></label>' +
@@ -718,7 +732,6 @@ export var createBuildPage = {
       '<label>Thumbnail image<input name="modelThumbnail" type="file" accept="image/*" /></label>' +
       '<label>Reference or step images<input name="modelGallery" type="file" accept="image/*" multiple /></label>' +
       '</div>' +
-      '<p class="muted compact-help">You can add more than one photo here for references, steps, or extra angles.</p>' +
       '<label id="model-upload-field"' +
       (modelSource === 'upload' ? '' : ' hidden') +
       '>GLB or glTF model<input name="modelFile" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" /></label>' +
@@ -766,6 +779,7 @@ export var createBuildPage = {
     var pictureCard = document.querySelector('[data-asset-card="picture"]')
     var real3dCard = document.querySelector('[data-asset-card="real3d"]')
     var tipsCard = document.querySelector('[data-asset-card="tips"]')
+    var shouldLaunchEditor = context.query.launchEditor === '1'
 
     function getAssetKind() {
       return form.querySelector('[name="assetKind"]')?.value || 'model'
@@ -842,9 +856,16 @@ export var createBuildPage = {
     form.addEventListener('input', syncFormState)
     syncFormState()
 
+    if (shouldLaunchEditor && getAssetKind() === 'model' && getModelSource() === 'editor') {
+      saveCreateDraft(context.createDraft)
+      context.router.navigate('/editor')
+      return
+    }
+
     saveButton.addEventListener('click', async function () {
       try {
         var draft = await serializeDraft(form, context)
+        context.createDraft = draft
         saveCreateDraft(draft)
         showToast('Draft metadata saved.', 'success')
       } catch (error) {
@@ -855,6 +876,7 @@ export var createBuildPage = {
     editorButton.addEventListener('click', async function () {
       try {
         var draft = await serializeDraft(form, context)
+        context.createDraft = draft
         saveCreateDraft(draft)
         context.router.navigate('/editor')
       } catch (error) {
@@ -865,6 +887,7 @@ export var createBuildPage = {
     publishButton.addEventListener('click', async function () {
       try {
         var draft = await serializeDraft(form, context)
+        context.createDraft = draft
 
         if (draft.modelType === 'editor') {
           saveCreateDraft(draft)

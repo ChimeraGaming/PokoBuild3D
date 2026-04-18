@@ -56,10 +56,6 @@ begin
     username = excluded.username,
     display_name = excluded.display_name;
 
-  if coalesce(new.email_confirmed_at, new.confirmed_at) is not null then
-    perform public.try_award_early_bird(new.id);
-  end if;
-
   return new;
 end;
 $$;
@@ -70,110 +66,20 @@ create table if not exists public.profiles (
   display_name text not null,
   bio text not null default '',
   avatar_url text not null default '',
+  featured_badge_key text not null default '',
   socials_json jsonb not null default '[]'::jsonb,
   special_tags_json jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default timezone('utc', now())
 );
 
 alter table public.profiles
+add column if not exists featured_badge_key text not null default '';
+
+alter table public.profiles
 add column if not exists socials_json jsonb not null default '[]'::jsonb;
 
 alter table public.profiles
 add column if not exists special_tags_json jsonb not null default '[]'::jsonb;
-
-create or replace function public.normalize_profile_special_tags(next_tags jsonb)
-returns jsonb
-language sql
-immutable
-as $$
-  select coalesce(jsonb_agg(tag order by sort_order, tag), '[]'::jsonb)
-  from (
-    select distinct
-      value as tag,
-      case value
-        when 'Owner' then 1
-        when 'Site Admin' then 2
-        when 'Community Expert' then 3
-        when 'Early Bird' then 4
-        else 99
-      end as sort_order
-    from jsonb_array_elements_text(coalesce(next_tags, '[]'::jsonb))
-    where value in ('Owner', 'Site Admin', 'Community Expert', 'Early Bird')
-  ) as filtered_tags;
-$$;
-
-create or replace function public.get_manageable_profile_special_tags(next_tags jsonb)
-returns jsonb
-language sql
-immutable
-as $$
-  select coalesce(jsonb_agg(tag order by sort_order, tag), '[]'::jsonb)
-  from (
-    select distinct
-      value as tag,
-      case value
-        when 'Owner' then 1
-        when 'Site Admin' then 2
-        when 'Community Expert' then 3
-        else 99
-      end as sort_order
-    from jsonb_array_elements_text(coalesce(next_tags, '[]'::jsonb))
-    where value in ('Owner', 'Site Admin', 'Community Expert')
-  ) as filtered_tags;
-$$;
-
-create or replace function public.get_automatic_profile_special_tags(next_tags jsonb)
-returns jsonb
-language sql
-immutable
-as $$
-  select coalesce(jsonb_agg(tag order by tag), '[]'::jsonb)
-  from (
-    select distinct value as tag
-    from jsonb_array_elements_text(coalesce(next_tags, '[]'::jsonb))
-    where value in ('Early Bird')
-  ) as filtered_tags;
-$$;
-
-create or replace function public.merge_profile_special_tags(manageable_tags jsonb, automatic_tags jsonb)
-returns jsonb
-language sql
-immutable
-as $$
-  select public.normalize_profile_special_tags(
-    coalesce(manageable_tags, '[]'::jsonb) || coalesce(automatic_tags, '[]'::jsonb)
-  );
-$$;
-
-create or replace function public.try_award_early_bird(target_profile_id uuid)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  awarded_count integer;
-begin
-  perform pg_advisory_xact_lock(1202);
-
-  select count(*)
-  into awarded_count
-  from public.profiles
-  where coalesce(special_tags_json, '[]'::jsonb) @> '["Early Bird"]'::jsonb;
-
-  if awarded_count >= 100 then
-    return;
-  end if;
-
-  update public.profiles
-  set special_tags_json = public.merge_profile_special_tags(
-    public.get_manageable_profile_special_tags(special_tags_json),
-    '["Early Bird"]'::jsonb
-  )
-  where id = target_profile_id
-    and not coalesce(special_tags_json, '[]'::jsonb) @> '["Early Bird"]'::jsonb;
-end;
-$$;
 
 create or replace function public.set_profile_special_tags(target_profile_id uuid, next_tags jsonb)
 returns public.profiles
@@ -183,7 +89,6 @@ set search_path = public
 as $$
 declare
   normalized_tags jsonb;
-  automatic_tags jsonb;
   updated_profile public.profiles;
 begin
   if not exists (
@@ -199,15 +104,21 @@ begin
     raise exception 'Special tags payload must be an array.';
   end if;
 
-  select public.get_automatic_profile_special_tags(special_tags_json)
-  into automatic_tags
-  from public.profiles
-  where id = target_profile_id;
-
-  normalized_tags := public.merge_profile_special_tags(
-    public.get_manageable_profile_special_tags(next_tags),
-    automatic_tags
-  );
+  select coalesce(jsonb_agg(tag order by tag), '[]'::jsonb)
+  into normalized_tags
+  from (
+    select distinct value as tag
+    from jsonb_array_elements_text(coalesce(next_tags, '[]'::jsonb))
+    where value in ('Owner', 'Site Admin', 'Community Expert')
+    union
+    select 'Early Bird'
+    where exists (
+      select 1
+      from public.profiles
+      where id = target_profile_id
+        and coalesce(special_tags_json, '[]'::jsonb) @> '["Early Bird"]'::jsonb
+    )
+  ) as filtered_tags;
 
   update public.profiles
   set special_tags_json = normalized_tags
@@ -220,22 +131,6 @@ begin
   end if;
 
   return updated_profile;
-end;
-$$;
-
-create or replace function public.handle_verified_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if coalesce(old.email_confirmed_at, old.confirmed_at) is null
-    and coalesce(new.email_confirmed_at, new.confirmed_at) is not null then
-    perform public.try_award_early_bird(new.id);
-  end if;
-
-  return new;
 end;
 $$;
 
@@ -353,6 +248,15 @@ create table if not exists public.chat_messages (
   created_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.direct_messages (
+  id text primary key,
+  sender_id uuid not null references public.profiles (id) on delete cascade,
+  recipient_id uuid not null references public.profiles (id) on delete cascade,
+  message_text text not null,
+  created_at timestamptz not null default timezone('utc', now()),
+  constraint direct_messages_sender_recipient_check check (sender_id <> recipient_id)
+);
+
 do $$
 begin
   if not exists (
@@ -363,6 +267,16 @@ begin
       and tablename = 'chat_messages'
   ) then
     alter publication supabase_realtime add table public.chat_messages;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'direct_messages'
+  ) then
+    alter publication supabase_realtime add table public.direct_messages;
   end if;
 end;
 $$;
@@ -400,12 +314,6 @@ after insert on auth.users
 for each row
 execute function public.handle_new_user();
 
-drop trigger if exists on_auth_user_verified on auth.users;
-create trigger on_auth_user_verified
-after update on auth.users
-for each row
-execute function public.handle_verified_user();
-
 insert into public.profiles (
   id,
   username,
@@ -436,12 +344,6 @@ left join public.profiles on profiles.id = users.id
 where profiles.id is null
 on conflict (id) do nothing;
 
-update public.profiles
-set special_tags_json = public.merge_profile_special_tags(
-  public.get_manageable_profile_special_tags(special_tags_json),
-  public.get_automatic_profile_special_tags(special_tags_json)
-);
-
 drop trigger if exists favorites_count_after_insert on public.favorites;
 create trigger favorites_count_after_insert
 after insert on public.favorites
@@ -464,31 +366,8 @@ create index if not exists build_blocks_build_id_idx on public.build_blocks (bui
 create index if not exists favorites_user_id_idx on public.favorites (user_id);
 create index if not exists build_progress_user_id_idx on public.build_progress (user_id);
 create index if not exists chat_messages_created_at_idx on public.chat_messages (created_at desc);
-
-create or replace function public.trim_chat_messages()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  delete from public.chat_messages
-  where id in (
-    select id
-    from public.chat_messages
-    order by created_at desc, id desc
-    offset 100
-  );
-
-  return null;
-end;
-$$;
-
-drop trigger if exists trim_chat_messages_after_insert on public.chat_messages;
-create trigger trim_chat_messages_after_insert
-after insert on public.chat_messages
-for each statement
-execute function public.trim_chat_messages();
+create index if not exists direct_messages_sender_created_at_idx on public.direct_messages (sender_id, created_at desc);
+create index if not exists direct_messages_recipient_created_at_idx on public.direct_messages (recipient_id, created_at desc);
 
 alter table public.profiles enable row level security;
 alter table public.builds enable row level security;
@@ -501,6 +380,7 @@ alter table public.favorites enable row level security;
 alter table public.build_progress enable row level security;
 alter table public.build_remixes enable row level security;
 alter table public.chat_messages enable row level security;
+alter table public.direct_messages enable row level security;
 
 create policy "profiles public read"
 on public.profiles
@@ -764,6 +644,16 @@ create policy "chat messages owner insert"
 on public.chat_messages
 for insert
 with check (auth.uid() = user_id);
+
+create policy "direct messages owner read"
+on public.direct_messages
+for select
+using (auth.uid() = sender_id or auth.uid() = recipient_id);
+
+create policy "direct messages owner insert"
+on public.direct_messages
+for insert
+with check (auth.uid() = sender_id);
 
 insert into storage.buckets (id, name, public)
 values

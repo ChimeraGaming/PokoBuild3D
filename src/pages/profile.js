@@ -4,11 +4,14 @@ import { showToast } from '../components/toast.js'
 import { escapeHtml } from '../utils/dom.js'
 import { createProfilePath, formatDate } from '../utils/format.js'
 import {
-  MANAGEABLE_SPECIAL_TAG_OPTIONS,
+  ASSIGNABLE_SPECIAL_TAG_OPTIONS,
   canAssignSpecialTags,
+  getBadgeCatalog,
+  getFeaturedBadge,
   getProfileAvatar,
-  renderSocialLinks,
-  renderSpecialTagChips
+  getUnlockedBadges,
+  renderBadgeChips,
+  renderSocialLinks
 } from '../utils/profile.js'
 
 function renderSpecialTagOption(tag, selected) {
@@ -30,10 +33,61 @@ function renderSpecialTagSelection(tags) {
   var selectedTags = (tags || []).filter(Boolean)
 
   if (!selectedTags.length) {
-    return 'Choose special tags'
+    return 'No assignable badges selected'
   }
 
   return selectedTags.join(', ')
+}
+
+function renderMilestoneList(milestones) {
+  if (!milestones.length) {
+    return ''
+  }
+
+  return (
+    '<div class="achievement-milestones">' +
+    milestones
+      .map(function (milestone) {
+        return (
+          '<div class="achievement-milestone' +
+          (milestone.isUnlocked ? ' is-unlocked' : '') +
+          '">' +
+          '<strong>' +
+          escapeHtml(milestone.label) +
+          '</strong>' +
+          '<span>' +
+          escapeHtml(milestone.helper) +
+          '</span>' +
+          '</div>'
+        )
+      })
+      .join('') +
+    '</div>'
+  )
+}
+
+function renderAchievementCard(entry) {
+  return (
+    '<article class="card stack achievement-card">' +
+    '<div class="split-row achievement-card__header"><div><span class="eyebrow">Badge</span><h3>' +
+    escapeHtml(entry.title) +
+    '</h3></div><span class="tag-pill">' +
+    escapeHtml(entry.currentBadge ? entry.currentBadge.label : entry.countLabel) +
+    '</span></div>' +
+    '<p class="muted">' +
+    escapeHtml(entry.description) +
+    '</p>' +
+    (entry.currentBadge
+      ? '<div class="achievement-card__earned">' +
+        renderBadgeChips([entry.currentBadge]) +
+        '</div>'
+      : '<p class="muted achievement-card__locked">Not unlocked yet.</p>') +
+    '<p class="achievement-card__count">' +
+    escapeHtml(entry.countLabel) +
+    '</p>' +
+    renderMilestoneList(entry.milestones || []) +
+    '</article>'
+  )
 }
 
 export var profilePage = {
@@ -65,6 +119,12 @@ export var profilePage = {
         )
     var isOwnProfile = context.session?.profile?.id === profile.id
     var canManageTags = canAssignSpecialTags(context.session?.profile)
+    var unlockedBadges = getUnlockedBadges(profile)
+    var featuredBadge = getFeaturedBadge(profile)
+    var badgeCatalog = getBadgeCatalog(profile)
+    var assignableTags = (profile.specialTags || []).filter(function (tag) {
+      return ASSIGNABLE_SPECIAL_TAG_OPTIONS.includes(tag)
+    })
 
     return (
       '<section class="shell page-stack">' +
@@ -81,6 +141,12 @@ export var profilePage = {
       '<h1>' +
       escapeHtml(profile.displayName) +
       '</h1>' +
+      (featuredBadge
+        ? '<div class="profile-featured-badge">' +
+          '<span class="eyebrow">Featured badge</span>' +
+          renderBadgeChips([featuredBadge]) +
+          '</div>'
+        : '') +
       '<p>' +
       escapeHtml(profile.bio || 'No bio added yet.') +
       '</p>' +
@@ -89,18 +155,23 @@ export var profilePage = {
       escapeHtml(profile.buildCount) +
       ' published builds</span>' +
       '<span class="tag-pill">' +
+      escapeHtml(profile.chatCount) +
+      ' chat messages</span>' +
+      '<span class="tag-pill">' +
       escapeHtml(profile.favoritesCount) +
       ' favorites</span>' +
       '<span class="tag-pill">Joined ' +
       escapeHtml(formatDate(profile.createdAt)) +
       '</span>' +
       '</div>' +
-      '<div class="profile-special-tags stack">' +
-      '<span class="eyebrow">Special tags</span>' +
-      '<div id="profile-special-tags">' +
-      renderSpecialTagChips(profile.specialTags) +
-      '</div>' +
-      '</div>' +
+      (unlockedBadges.length
+        ? '<div class="profile-special-tags stack">' +
+          '<span class="eyebrow">Unlocked badges</span>' +
+          '<div id="profile-special-tags">' +
+          renderBadgeChips(unlockedBadges) +
+          '</div>' +
+          '</div>'
+        : '') +
       '<div class="profile-socials">' +
       '<span class="eyebrow">Socials</span>' +
       renderSocialLinks(profile.socials) +
@@ -115,30 +186,45 @@ export var profilePage = {
       (canManageTags
         ? '<section class="card stack">' +
           '<span class="eyebrow">Owner tools</span>' +
-          '<h2>Manage special tags</h2>' +
-          '<p class="muted">Choose which site tag badges appear on this profile.</p>' +
+          '<h2>Manage special badges</h2>' +
+          '<p class="muted">Choose which owner-managed badges appear on this profile.</p>' +
           '<form id="special-tags-form" class="stack" data-profile-id="' +
           escapeHtml(profile.id) +
           '" data-profile-username="' +
           escapeHtml(profile.username) +
           '">' +
-          '<details class="dropdown-menu special-tags-dropdown" id="special-tags-dropdown"><summary class="dropdown-menu__summary"><span>Special tags</span><span id="special-tags-selection" class="muted">' +
-          escapeHtml(renderSpecialTagSelection(profile.specialTags)) +
+          '<details class="dropdown-menu special-tags-dropdown" id="special-tags-dropdown"><summary class="dropdown-menu__summary"><span>Managed badges</span><span id="special-tags-selection" class="muted">' +
+          escapeHtml(renderSpecialTagSelection(assignableTags)) +
           '</span></summary><div class="dropdown-menu__panel"><div class="dropdown-checkbox-list">' +
-          MANAGEABLE_SPECIAL_TAG_OPTIONS.map(function (tag) {
-            return renderSpecialTagOption(tag, profile.specialTags.includes(tag))
+          ASSIGNABLE_SPECIAL_TAG_OPTIONS.map(function (tag) {
+            return renderSpecialTagOption(tag, assignableTags.includes(tag))
           }).join('') +
           '</div></div></details>' +
           '<div class="button-row">' +
-          '<button class="button button-primary" id="save-special-tags" type="submit">Save Special Tags</button>' +
+          '<button class="button button-primary" id="save-special-tags" type="submit">Save Special Badges</button>' +
           '</div>' +
           '</form>' +
           '</section>'
         : '') +
-      '<div class="split-row"><div><span class="eyebrow">Published builds</span><h2>Build library</h2></div></div>' +
+      '<section class="card stack">' +
+      '<div class="split-row"><div><span class="eyebrow">Profile tabs</span><h2>Progress</h2></div></div>' +
+      '<div class="profile-section-tabs">' +
+      '<button class="button button-secondary is-active" type="button" data-profile-tab="builds">Builds</button>' +
+      '<button class="button button-ghost" type="button" data-profile-tab="achievements">Achievements</button>' +
+      '</div>' +
+      '<div id="profile-tab-builds" data-profile-panel="builds">' +
+      '<div class="split-row"><div><span class="eyebrow">Published builds</span><h3>Build library</h3></div></div>' +
       '<div class="card-grid card-grid-three">' +
       cards +
       '</div>' +
+      '</div>' +
+      '<div id="profile-tab-achievements" data-profile-panel="achievements" hidden>' +
+      '<div class="split-row"><div><span class="eyebrow">Badge guide</span><h3>Achievements</h3></div></div>' +
+      '<div class="achievement-grid">' +
+      badgeCatalog.map(renderAchievementCard).join('') +
+      '</div>' +
+      '</div>' +
+      '</section>' +
       '</section>'
     )
   },
@@ -146,7 +232,8 @@ export var profilePage = {
     var signOutButton = document.getElementById('sign-out-button')
     var specialTagsForm = document.getElementById('special-tags-form')
     var specialTagsSelection = document.getElementById('special-tags-selection')
-    var specialTagsDropdown = document.getElementById('special-tags-dropdown')
+    var tabButtons = Array.from(document.querySelectorAll('[data-profile-tab]'))
+    var tabPanels = Array.from(document.querySelectorAll('[data-profile-panel]'))
 
     function selectedSpecialTags() {
       return Array.from(specialTagsForm?.querySelectorAll('input[name="specialTag"]:checked') || []).map(
@@ -164,11 +251,33 @@ export var profilePage = {
       specialTagsSelection.textContent = renderSpecialTagSelection(selectedSpecialTags())
     }
 
+    function setActiveTab(tabName) {
+      tabButtons.forEach(function (button) {
+        var isActive = button.dataset.profileTab === tabName
+        button.classList.toggle('is-active', isActive)
+        button.classList.toggle('button-secondary', isActive)
+        button.classList.toggle('button-ghost', !isActive)
+      })
+
+      tabPanels.forEach(function (panel) {
+        panel.hidden = panel.dataset.profilePanel !== tabName
+      })
+    }
+
     if (signOutButton) {
       signOutButton.addEventListener('click', async function () {
         await context.api.signOut()
         context.router.navigate('/')
       })
+    }
+
+    if (tabButtons.length) {
+      tabButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          setActiveTab(button.dataset.profileTab)
+        })
+      })
+      setActiveTab('builds')
     }
 
     if (specialTagsForm) {
@@ -184,32 +293,21 @@ export var profilePage = {
           saveButton.disabled = true
           saveButton.textContent = 'Saving...'
 
-          var updatedProfile = await context.api.setProfileSpecialTags(
+          await context.api.setProfileSpecialTags(
             specialTagsForm.dataset.profileId,
             nextTags,
             context.session.profile
           )
 
-          document.getElementById('profile-special-tags').innerHTML = renderSpecialTagChips(
-            updatedProfile.specialTags
-          )
-          syncSpecialTagSelection()
-          if (specialTagsDropdown) {
-            specialTagsDropdown.open = false
-          }
-          showToast('Special tags updated.', 'success')
-
-          if (updatedProfile.id === context.session.profile.id) {
-            context.router.navigate(createProfilePath(updatedProfile.username), {
-              refresh: String(Date.now())
-            })
-            return
-          }
+          showToast('Special badges updated.', 'success')
+          context.router.navigate(createProfilePath(specialTagsForm.dataset.profileUsername), {
+            refresh: String(Date.now())
+          })
         } catch (error) {
           showToast(error.message, 'error')
         } finally {
           saveButton.disabled = false
-          saveButton.textContent = 'Save Special Tags'
+          saveButton.textContent = 'Save Special Badges'
         }
       })
     }

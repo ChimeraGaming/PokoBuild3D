@@ -15,6 +15,7 @@ export var demoProfiles = [
       { label: 'Photo Log', url: 'https://elmstead-photos.example' }
     ],
     specialTags: ['Owner'],
+    featuredBadgeKey: 'owner',
     createdAt: '2026-01-10T16:00:00.000Z'
   },
   {
@@ -30,6 +31,7 @@ export var demoProfiles = [
     ),
     socials: [{ label: 'Sage Journal', url: 'https://sagefern.example' }],
     specialTags: ['Site Admin'],
+    featuredBadgeKey: 'site-admin',
     createdAt: '2026-02-03T16:00:00.000Z'
   },
   {
@@ -45,6 +47,7 @@ export var demoProfiles = [
     ),
     socials: [{ label: 'Market Clips', url: 'https://wrenmarket.example' }],
     specialTags: ['Community Expert'],
+    featuredBadgeKey: 'community-expert',
     createdAt: '2026-02-20T16:00:00.000Z'
   }
 ]
