@@ -2,12 +2,7 @@
 
 ## Live Site
 
-🔴[NOT YET LIVE!](https://updatelater.com)
-
-# TEASER
-
-<img width="1920" height="916" alt="image" src="https://github.com/user-attachments/assets/6e5a034d-7654-49eb-bf56-543c89d1deeb" />
-
+🟢[PokoBuild3D Site](https://chimeragaming.github.io/PokoBuild3D/)
 
 ## What This Site Is
 
