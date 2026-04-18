@@ -845,6 +845,15 @@ p {
   gap: 0.75rem;
 }
 
+.live-chat__owner-tools {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.live-chat__owner-button {
+  justify-self: start;
+}
+
 .live-chat__settings-label {
   color: var(--text);
   font-weight: 600;
@@ -1394,6 +1403,24 @@ p {
   flex-wrap: wrap;
 }
 
+.profile-build-group,
+.profile-draft-section {
+  gap: 1rem;
+}
+
+.profile-build-group + .profile-build-group {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(48, 54, 61, 0.72);
+}
+
+.profile-build-group__count {
+  padding: 0.52rem 0.74rem;
+  border-radius: 12px;
+  border: 1px solid rgba(48, 54, 61, 0.92);
+  background: rgba(11, 15, 21, 0.82);
+  color: #c9d1d9;
+}
+
 .profile-section-tabs .button.is-active {
   box-shadow: 0 10px 24px rgba(31, 111, 235, 0.22);
 }
@@ -1419,6 +1446,16 @@ p {
 .achievement-card__earned {
   display: grid;
   gap: 0.5rem;
+}
+
+.achievement-card__owner-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.achievement-card__award-button {
+  min-width: 9rem;
 }
 
 .achievement-card__count {

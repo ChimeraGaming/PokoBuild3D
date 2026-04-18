@@ -1,6 +1,6 @@
 import { showToast } from './toast.js'
 import { escapeHtml } from '../utils/dom.js'
-import { getFeaturedBadge } from '../utils/profile.js'
+import { canAssignSpecialTags, getFeaturedBadge } from '../utils/profile.js'
 import { readStorage, writeStorage } from '../utils/storage.js'
 
 var CHAT_UI_KEY = 'pokobuilds3d:chat-ui'
@@ -49,6 +49,7 @@ function loadChatUiState() {
     directRecipientId: String(saved.directRecipientId || '').trim(),
     layout: normalizeLayoutMode(legacyLayoutValue),
     textSize: normalizeChatTextSize(saved.textSize),
+    communityClearedAt: String(saved.communityClearedAt || '').trim(),
     freeformX: isFiniteNumber(saved.freeformX) ? Number(saved.freeformX) : null,
     freeformY: isFiniteNumber(saved.freeformY) ? Number(saved.freeformY) : null,
     freeformWidth: isFiniteNumber(saved.freeformWidth) ? Number(saved.freeformWidth) : null,
@@ -207,6 +208,13 @@ function renderMessages(messages, options) {
 export function renderLiveChat(session) {
   var uiState = loadChatUiState()
   var hasSession = Boolean(session?.profile)
+  var canManageChatLog = canAssignSpecialTags(session?.profile)
+
+  if (!canManageChatLog && uiState.communityClearedAt) {
+    uiState.communityClearedAt = ''
+    saveChatUiState(uiState)
+  }
+
   var composePlaceholder = hasSession
     ? uiState.mode === 'direct'
       ? 'Send a private message.'
@@ -266,6 +274,11 @@ export function renderLiveChat(session) {
     '</select></div></div></div>' +
     '<p class="muted compact-help">Adjust chat text from 10px to 32px.</p>' +
     '</div>' +
+    (canManageChatLog
+      ? '<div class="live-chat__owner-tools"><button class="button button-ghost live-chat__owner-button" id="live-chat-clear-log" type="button">' +
+        escapeHtml(uiState.communityClearedAt ? 'Restore log' : 'Clear log') +
+        '</button><p class="muted compact-help">Owner only. This only resets the visible community log in this panel.</p></div>'
+      : '') +
     '</div>' +
     '<div class="live-chat__tabs">' +
     '<button class="button button-ghost live-chat__tab' +
@@ -331,6 +344,7 @@ export function mountLiveChat(options) {
   var snapSetting = document.getElementById('live-chat-snap-setting')
   var collapseButton = document.getElementById('live-chat-collapse')
   var settingsButton = document.getElementById('live-chat-settings-toggle')
+  var clearLogButton = document.getElementById('live-chat-clear-log')
   var layoutSelect = document.getElementById('live-chat-layout')
   var sideSelect = document.getElementById('live-chat-side')
   var textSizeInput = document.getElementById('live-chat-text-size-input')
@@ -438,9 +452,16 @@ export function mountLiveChat(options) {
     )
   }
 
+  function getCommunityClearedTime() {
+    var time = uiState.communityClearedAt ? new Date(uiState.communityClearedAt).getTime() : NaN
+    return Number.isFinite(time) ? time : null
+  }
+
   function getEmptyLabel() {
     if (uiState.mode === 'community') {
-      return 'No messages yet. Start the conversation.'
+      return uiState.communityClearedAt
+        ? 'Chat log cleared for this panel. New community messages will appear here.'
+        : 'No messages yet. Start the conversation.'
     }
 
     if (!session?.profile) {
@@ -533,6 +554,9 @@ export function mountLiveChat(options) {
     settingsPanel.hidden = uiState.collapsed || !settingsOpen
     if (snapSetting) {
       snapSetting.hidden = uiState.layout !== 'default'
+    }
+    if (clearLogButton) {
+      clearLogButton.textContent = uiState.communityClearedAt ? 'Restore log' : 'Clear log'
     }
     directControls.hidden = uiState.collapsed || uiState.mode !== 'direct'
     collapseButton.textContent = uiState.collapsed ? 'Open' : 'Collapse'
@@ -653,6 +677,16 @@ export function mountLiveChat(options) {
 
       if (uiState.mode === 'community') {
         messages = await api.listChatMessages()
+
+        if (uiState.communityClearedAt) {
+          var clearedTime = getCommunityClearedTime()
+
+          if (clearedTime) {
+            messages = messages.filter(function (message) {
+              return new Date(message.createdAt).getTime() > clearedTime
+            })
+          }
+        }
       } else if (!session?.profile) {
         await loadDirectConversations()
 
@@ -703,6 +737,14 @@ export function mountLiveChat(options) {
   settingsButton.addEventListener('click', function () {
     settingsOpen = !settingsOpen
     applyUiState()
+  })
+
+  clearLogButton?.addEventListener('click', function () {
+    uiState.communityClearedAt = uiState.communityClearedAt ? '' : new Date().toISOString()
+    saveChatUiState(uiState)
+    applyUiState()
+    refreshMessages()
+    showToast(uiState.communityClearedAt ? 'Visible community log cleared.' : 'Full community log restored.', 'success')
   })
 
   collapseButton.addEventListener('click', function () {

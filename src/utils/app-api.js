@@ -8,6 +8,7 @@ import { createSupabaseApi } from './supabase-api.js'
 import { gridFromTemplateSize, normalizeTemplateSize } from './template-size.js'
 
 var CHAT_FALLBACK_KEY = 'pokobuilds3d:fallback-chat-messages'
+var CHAT_PROGRESS_KEY = 'pokobuilds3d:chat-progress-counts'
 var CHAT_LOG_LIMIT = 100
 
 function isMissingChatTableError(error) {
@@ -51,6 +52,96 @@ function writeFallbackChatMessages(messages) {
   writeStorage(CHAT_FALLBACK_KEY, messages)
 }
 
+function readChatProgressCounts() {
+  var saved = readStorage(CHAT_PROGRESS_KEY, {})
+
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) {
+    return {}
+  }
+
+  return Object.keys(saved).reduce(function (counts, profileId) {
+    if (!profileId) {
+      return counts
+    }
+
+    counts[profileId] = Math.max(0, Number(saved[profileId] || 0))
+    return counts
+  }, {})
+}
+
+function writeChatProgressCounts(counts) {
+  writeStorage(CHAT_PROGRESS_KEY, counts)
+}
+
+function countFallbackMessagesForProfile(profileId) {
+  if (!profileId) {
+    return 0
+  }
+
+  return readFallbackChatMessages().filter(function (message) {
+    return message.userId === profileId
+  }).length
+}
+
+function getTrackedChatCount(profileId) {
+  var counts = readChatProgressCounts()
+
+  return Math.max(Number(counts[profileId] || 0), countFallbackMessagesForProfile(profileId))
+}
+
+function syncTrackedChatCount(profile) {
+  var counts
+  var nextCount
+
+  if (!profile?.id) {
+    return profile
+  }
+
+  counts = readChatProgressCounts()
+  nextCount = Math.max(
+    Number(profile.chatCount || 0),
+    Number(counts[profile.id] || 0),
+    countFallbackMessagesForProfile(profile.id)
+  )
+
+  if (nextCount > Number(counts[profile.id] || 0)) {
+    counts[profile.id] = nextCount
+    writeChatProgressCounts(counts)
+  }
+
+  return {
+    ...profile,
+    chatCount: nextCount
+  }
+}
+
+function applyTrackedChatCount(profile) {
+  return profile?.id ? syncTrackedChatCount(profile) : profile
+}
+
+function applyTrackedChatCountToSession(session) {
+  if (!session?.profile) {
+    return session
+  }
+
+  return {
+    ...session,
+    profile: applyTrackedChatCount(session.profile)
+  }
+}
+
+function recordSuccessfulMessage(profileId) {
+  var counts
+
+  if (!profileId) {
+    return
+  }
+
+  counts = readChatProgressCounts()
+  counts[profileId] = Math.max(getTrackedChatCount(profileId), Number(counts[profileId] || 0)) + 1
+  writeChatProgressCounts(counts)
+}
+
 export function createAppApi() {
   var config = getSupabaseConfig()
   var api = config.configured ? createSupabaseApi() : createLocalApi()
@@ -83,6 +174,15 @@ export function createAppApi() {
 
       return api.uploadAsset(file, 'avatar', sessionProfile.id)
     },
+    async getSession() {
+      return applyTrackedChatCountToSession(await api.getSession())
+    },
+    async getProfileById(profileId) {
+      return applyTrackedChatCount(await api.getProfileById(profileId))
+    },
+    async getProfileByUsername(username) {
+      return applyTrackedChatCount(await api.getProfileByUsername(username))
+    },
     async listChatMessages() {
       if (!config.configured || api.backendMode !== 'supabase') {
         return api.listChatMessages()
@@ -104,8 +204,12 @@ export function createAppApi() {
       }
     },
     async sendChatMessage(text, sessionProfile) {
+      var message
+
       if (!config.configured || api.backendMode !== 'supabase') {
-        return api.sendChatMessage(text, sessionProfile)
+        message = await api.sendChatMessage(text, sessionProfile)
+        recordSuccessfulMessage(sessionProfile?.id)
+        return message
       }
 
       if (chatFallbackActive) {
@@ -130,11 +234,14 @@ export function createAppApi() {
 
         messages.push(nextMessage)
         writeFallbackChatMessages(messages.slice(-CHAT_LOG_LIMIT))
+        recordSuccessfulMessage(sessionProfile.id)
         return nextMessage
       }
 
       try {
-        return await api.sendChatMessage(text, sessionProfile)
+        message = await api.sendChatMessage(text, sessionProfile)
+        recordSuccessfulMessage(sessionProfile?.id)
+        return message
       } catch (error) {
         if (isMissingChatTableError(error)) {
           chatFallbackActive = true
@@ -143,6 +250,11 @@ export function createAppApi() {
 
         throw error
       }
+    },
+    async sendDirectMessage(recipientId, text, sessionProfile) {
+      var message = await api.sendDirectMessage(recipientId, text, sessionProfile)
+      recordSuccessfulMessage(sessionProfile?.id)
+      return message
     },
     subscribeToChatMessages(callback) {
       if (!config.configured || api.backendMode !== 'supabase') {

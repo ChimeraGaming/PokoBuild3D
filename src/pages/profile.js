@@ -3,6 +3,7 @@ import { renderEmptyState } from '../components/states.js'
 import { showToast } from '../components/toast.js'
 import { escapeHtml } from '../utils/dom.js'
 import { createProfilePath, formatDate } from '../utils/format.js'
+import { ASSET_KIND_LABELS, resolveBuildAssetKind } from '../utils/build-taxonomy.js'
 import { readStorage, writeStorage } from '../utils/storage.js'
 import {
   ASSIGNABLE_SPECIAL_TAG_OPTIONS,
@@ -16,6 +17,12 @@ import {
 } from '../utils/profile.js'
 
 var PROFILE_TAB_KEY = 'pokobuilds3d:profile-tab'
+var BUILD_KIND_ORDER = ['model', 'picture', 'real3d', 'tips']
+var AWARDABLE_BADGE_TAGS = {
+  owner: 'Owner',
+  'site-admin': 'Site Admin',
+  'community-expert': 'Community Expert'
+}
 
 function normalizeProfileTab(value) {
   return value === 'achievements' ? 'achievements' : 'builds'
@@ -73,6 +80,47 @@ function renderMilestoneList(milestones) {
   )
 }
 
+function groupBuildsByKind(builds) {
+  return BUILD_KIND_ORDER.map(function (kind) {
+    return {
+      kind: kind,
+      label: ASSET_KIND_LABELS[kind] || 'Post',
+      builds: (builds || []).filter(function (build) {
+        return resolveBuildAssetKind(build) === kind
+      })
+    }
+  }).filter(function (group) {
+    return group.builds.length
+  })
+}
+
+function renderGroupedBuildSections(builds, emptyTitle, emptyDescription) {
+  var groups = groupBuildsByKind(builds)
+
+  if (!groups.length) {
+    return renderEmptyState(emptyTitle, emptyDescription, '', '')
+  }
+
+  return groups
+    .map(function (group) {
+      return (
+        '<section class="stack profile-build-group">' +
+        '<div class="split-row"><div><span class="eyebrow profile-section-label">Build section</span><h3>' +
+        escapeHtml(group.label) +
+        '</h3></div><span class="tag-pill profile-build-group__count">' +
+        escapeHtml(String(group.builds.length)) +
+        ' ' +
+        escapeHtml(group.builds.length === 1 ? 'post' : 'posts') +
+        '</span></div>' +
+        '<div class="card-grid card-grid-three">' +
+        group.builds.map(renderBuildCard).join('') +
+        '</div>' +
+        '</section>'
+      )
+    })
+    .join('')
+}
+
 function getAchievementTone(entry) {
   if (entry?.currentBadge?.tone) {
     return entry.currentBadge.tone
@@ -105,7 +153,32 @@ function getAchievementTone(entry) {
   return 'default'
 }
 
-function renderAchievementCard(entry) {
+function renderAchievementOwnerAction(entry, canManageTags, profile) {
+  var specialTag = AWARDABLE_BADGE_TAGS[entry?.key]
+  var isAwarded = Boolean(entry?.currentBadge)
+
+  if (!canManageTags || !specialTag) {
+    return ''
+  }
+
+  return (
+    '<div class="achievement-card__owner-action">' +
+    (isAwarded
+      ? '<button class="button button-ghost achievement-card__award-button" type="button" disabled>Badge Awarded</button>'
+      : '<button class="button button-secondary achievement-card__award-button" type="button" data-award-special-tag="' +
+        escapeHtml(specialTag) +
+        '" data-award-profile-id="' +
+        escapeHtml(profile.id) +
+        '" data-award-profile-username="' +
+        escapeHtml(profile.username) +
+        '" data-award-title="' +
+        escapeHtml(entry.title) +
+        '">Award Badge</button>') +
+    '</div>'
+  )
+}
+
+function renderAchievementCard(entry, options) {
   var tone = getAchievementTone(entry)
   var isUnlocked = Boolean(entry.currentBadge)
   var summaryTone = isUnlocked ? tone : 'locked'
@@ -130,6 +203,7 @@ function renderAchievementCard(entry) {
         renderBadgeChips([entry.currentBadge]) +
         '</div>'
       : '<p class="muted achievement-card__locked">Not unlocked yet.</p>') +
+    renderAchievementOwnerAction(entry, options?.canManageTags, options?.profile) +
     '<p class="achievement-card__count">' +
     escapeHtml(entry.countLabel) +
     '</p>' +
@@ -164,16 +238,17 @@ export var profilePage = {
           return !build.isPublished
         })
       : []
-    var publishedCards = publishedBuilds.length
-      ? publishedBuilds.map(renderBuildCard).join('')
-      : renderEmptyState(
-          'No builds yet',
-          'Published builds from this profile will appear here.',
-          '',
-          ''
-        )
+    var publishedCards = renderGroupedBuildSections(
+      publishedBuilds,
+      'No builds yet',
+      'Published builds from this profile will appear here.'
+    )
     var draftCards = draftBuilds.length
-      ? draftBuilds.map(renderBuildCard).join('')
+      ? renderGroupedBuildSections(
+          draftBuilds,
+          'No drafts yet',
+          'Private drafts from this profile will appear here.'
+        )
       : ''
     var canManageTags = canAssignSpecialTags(context.session?.profile)
     var unlockedBadges = getUnlockedBadges(profile)
@@ -277,13 +352,11 @@ export var profilePage = {
       (activeTab === 'builds' ? '' : ' hidden') +
       '>' +
       '<div class="split-row"><div><span class="eyebrow profile-section-label">Published builds</span><h3>Build library</h3></div></div>' +
-      '<div class="card-grid card-grid-three">' +
       publishedCards +
-      '</div>' +
       (draftBuilds.length
-        ? '<div class="stack profile-draft-section"><div class="split-row"><div><span class="eyebrow profile-section-label">Private drafts</span><h3>Draft shelf</h3></div></div><p class="muted">These posts only show on your profile until you publish them from the build page.</p><div class="card-grid card-grid-three">' +
+        ? '<div class="stack profile-draft-section"><div class="split-row"><div><span class="eyebrow profile-section-label">Private drafts</span><h3>Draft shelf</h3></div></div><p class="muted">These posts only show on your profile until you publish them from the build page.</p>' +
           draftCards +
-          '</div></div>'
+          '</div>'
         : '') +
       '</div>' +
       '<div id="profile-tab-achievements" data-profile-panel="achievements"' +
@@ -291,7 +364,14 @@ export var profilePage = {
       '>' +
       '<div class="split-row"><div><span class="eyebrow profile-section-label">Badge guide</span><h3>Achievements</h3></div></div>' +
       '<div class="achievement-grid">' +
-      badgeCatalog.map(renderAchievementCard).join('') +
+      badgeCatalog
+        .map(function (entry) {
+          return renderAchievementCard(entry, {
+            canManageTags: canManageTags,
+            profile: profile
+          })
+        })
+        .join('') +
       '</div>' +
       '</div>' +
       '</section>' +
@@ -306,6 +386,7 @@ export var profilePage = {
     var specialTagsSelection = document.getElementById('special-tags-selection')
     var tabButtons = Array.from(document.querySelectorAll('[data-profile-tab]'))
     var tabPanels = Array.from(document.querySelectorAll('[data-profile-panel]'))
+    var awardButtons = Array.from(document.querySelectorAll('[data-award-special-tag]'))
 
     function selectedSpecialTags() {
       return Array.from(specialTagsForm?.querySelectorAll('input[name="specialTag"]:checked') || []).map(
@@ -394,5 +475,45 @@ export var profilePage = {
         }
       })
     }
+
+    awardButtons.forEach(function (button) {
+      button.addEventListener('click', async function () {
+        var saveButton
+        var nextTags
+
+        if (!specialTagsForm) {
+          showToast('Owner badge tools are unavailable right now.', 'error')
+          return
+        }
+
+        saveButton = button
+        nextTags = selectedSpecialTags()
+
+        if (!nextTags.includes(button.dataset.awardSpecialTag)) {
+          nextTags.push(button.dataset.awardSpecialTag)
+        }
+
+        try {
+          saveButton.disabled = true
+          saveButton.textContent = 'Awarding...'
+
+          await context.api.setProfileSpecialTags(
+            button.dataset.awardProfileId,
+            nextTags,
+            context.session.profile
+          )
+
+          showToast(button.dataset.awardTitle + ' badge awarded.', 'success')
+          context.router.navigate(createProfilePath(button.dataset.awardProfileUsername), {
+            refresh: String(Date.now())
+          })
+        } catch (error) {
+          showToast(error.message, 'error')
+        } finally {
+          saveButton.disabled = false
+          saveButton.textContent = 'Award Badge'
+        }
+      })
+    })
   }
 }
