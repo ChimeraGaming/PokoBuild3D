@@ -3,12 +3,57 @@ import { getSupabaseConfig } from '../supabase/client.js'
 import { splitTags } from './build-model.js'
 import { slugify, uniqueId } from './format.js'
 import { createLocalApi } from './local-api.js'
+import { readStorage, writeStorage } from './storage.js'
 import { createSupabaseApi } from './supabase-api.js'
 import { gridFromTemplateSize, normalizeTemplateSize } from './template-size.js'
+
+var CHAT_FALLBACK_KEY = 'pokobuilds3d:fallback-chat-messages'
+
+function isMissingChatTableError(error) {
+  var message = String(error?.message || '')
+  var details = String(error?.details || '')
+  var hint = String(error?.hint || '')
+
+  return (
+    error?.code === 'PGRST205' ||
+    (/chat_messages/i.test(message) && /schema cache/i.test(message)) ||
+    /chat_messages/i.test(details) ||
+    /chat_messages/i.test(hint)
+  )
+}
+
+function normalizeChatAuthor(profile) {
+  if (!profile) {
+    return null
+  }
+
+  return {
+    id: profile.id || '',
+    username: profile.username || '',
+    displayName: profile.displayName || profile.username || '',
+    avatarUrl: profile.avatarUrl || ''
+  }
+}
+
+function readFallbackChatMessages() {
+  return (readStorage(CHAT_FALLBACK_KEY, []) || [])
+    .filter(function (message) {
+      return message && message.id && message.text
+    })
+    .sort(function (left, right) {
+      return new Date(left.createdAt) - new Date(right.createdAt)
+    })
+    .slice(-40)
+}
+
+function writeFallbackChatMessages(messages) {
+  writeStorage(CHAT_FALLBACK_KEY, messages)
+}
 
 export function createAppApi() {
   var config = getSupabaseConfig()
   var api = config.configured ? createSupabaseApi() : createLocalApi()
+  var chatFallbackActive = false
 
   return {
     ...api,
@@ -36,6 +81,99 @@ export function createAppApi() {
       }
 
       return api.uploadAsset(file, 'avatar', sessionProfile.id)
+    },
+    async listChatMessages() {
+      if (!config.configured || api.backendMode !== 'supabase') {
+        return api.listChatMessages()
+      }
+
+      if (chatFallbackActive) {
+        return readFallbackChatMessages()
+      }
+
+      try {
+        return await api.listChatMessages()
+      } catch (error) {
+        if (isMissingChatTableError(error)) {
+          chatFallbackActive = true
+          return readFallbackChatMessages()
+        }
+
+        throw error
+      }
+    },
+    async sendChatMessage(text, sessionProfile) {
+      if (!config.configured || api.backendMode !== 'supabase') {
+        return api.sendChatMessage(text, sessionProfile)
+      }
+
+      if (chatFallbackActive) {
+        var fallbackText = String(text || '').trim()
+
+        if (!sessionProfile) {
+          throw new Error('Sign in to join the live chat.')
+        }
+
+        if (!fallbackText) {
+          throw new Error('Write a message before sending it.')
+        }
+
+        var nextMessage = {
+          id: uniqueId('chat'),
+          userId: sessionProfile.id,
+          text: fallbackText,
+          createdAt: new Date().toISOString(),
+          author: normalizeChatAuthor(sessionProfile)
+        }
+        var messages = readFallbackChatMessages()
+
+        messages.push(nextMessage)
+        writeFallbackChatMessages(messages)
+        return nextMessage
+      }
+
+      try {
+        return await api.sendChatMessage(text, sessionProfile)
+      } catch (error) {
+        if (isMissingChatTableError(error)) {
+          chatFallbackActive = true
+          return this.sendChatMessage(text, sessionProfile)
+        }
+
+        throw error
+      }
+    },
+    subscribeToChatMessages(callback) {
+      if (!config.configured || api.backendMode !== 'supabase') {
+        return typeof api.subscribeToChatMessages === 'function'
+          ? api.subscribeToChatMessages(callback)
+          : function () {}
+      }
+
+      if (chatFallbackActive) {
+        function handleStorage(event) {
+          if (event.key === CHAT_FALLBACK_KEY) {
+            callback()
+          }
+        }
+
+        window.addEventListener('storage', handleStorage)
+
+        return function cleanup() {
+          window.removeEventListener('storage', handleStorage)
+        }
+      }
+
+      try {
+        return api.subscribeToChatMessages(callback)
+      } catch (error) {
+        if (isMissingChatTableError(error)) {
+          chatFallbackActive = true
+          return this.subscribeToChatMessages(callback)
+        }
+
+        throw error
+      }
     },
     createDraftFromTemplate(values) {
       var assetKind = values.assetKind

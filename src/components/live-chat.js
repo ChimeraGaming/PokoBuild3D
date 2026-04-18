@@ -138,6 +138,7 @@ export function mountLiveChat(options) {
   var subscriptionCleanup = null
   var refreshIntervalId = null
   var refreshInFlight = null
+  var isMounted = true
 
   function applyUiState() {
     root.classList.toggle('is-collapsed', uiState.collapsed)
@@ -229,14 +230,13 @@ export function mountLiveChat(options) {
     }
   })
 
-  applyUiState()
-  refreshMessages({ forceScroll: true })
+  async function bootstrapChat() {
+    await refreshMessages({ forceScroll: true })
 
-  refreshIntervalId = window.setInterval(function () {
-    refreshMessages()
-  }, CHAT_REFRESH_INTERVAL_MS)
+    if (!isMounted || typeof api.subscribeToChatMessages !== 'function') {
+      return
+    }
 
-  if (typeof api.subscribeToChatMessages === 'function') {
     try {
       subscriptionCleanup = api.subscribeToChatMessages(function () {
         refreshMessages()
@@ -246,7 +246,16 @@ export function mountLiveChat(options) {
     }
   }
 
+  applyUiState()
+  bootstrapChat()
+
+  refreshIntervalId = window.setInterval(function () {
+    refreshMessages()
+  }, CHAT_REFRESH_INTERVAL_MS)
+
   return function cleanup() {
+    isMounted = false
+
     if (refreshIntervalId) {
       window.clearInterval(refreshIntervalId)
     }
