@@ -893,6 +893,59 @@ export function createSupabaseApi() {
 
       return decorateDirectMessages(response.data || [])
     },
+    async listDirectConversations(sessionProfile) {
+      var supabase = getSupabaseClient()
+      var profileCache = {}
+
+      if (!sessionProfile) {
+        throw new Error('Sign in to use direct messages.')
+      }
+
+      var response = await supabase
+        .from('direct_messages')
+        .select('*')
+        .or('sender_id.eq.' + sessionProfile.id + ',recipient_id.eq.' + sessionProfile.id)
+        .order('created_at', { ascending: false })
+
+      if (response.error) {
+        throw normalizeDirectMessageError(response.error)
+      }
+
+      var latestByProfile = new Map()
+
+      ;(response.data || []).forEach(function (message) {
+        var partnerId =
+          message.sender_id === sessionProfile.id ? message.recipient_id : message.sender_id
+
+        if (!partnerId || latestByProfile.has(partnerId)) {
+          return
+        }
+
+        latestByProfile.set(partnerId, message)
+      })
+
+      return Promise.all(
+        Array.from(latestByProfile.entries()).map(async function (entry) {
+          if (!profileCache[entry[0]]) {
+            profileCache[entry[0]] = fetchSupabaseAuthor(entry[0])
+          }
+
+          var profile = await profileCache[entry[0]]
+
+          if (!profile) {
+            return null
+          }
+
+          return {
+            profile: profile,
+            lastMessage: String(entry[1].message_text || '').trim(),
+            lastMessageAt: entry[1].created_at
+          }
+        })
+      ).then(function (items) {
+        return items.filter(Boolean)
+      })
+    },
     async sendDirectMessage(recipientId, text, sessionProfile) {
       var supabase = getSupabaseClient()
       var messageText = String(text || '').trim()
@@ -902,11 +955,11 @@ export function createSupabaseApi() {
       }
 
       if (!recipientId) {
-        throw new Error('Choose a builder before sending a DM.')
+        throw new Error('Choose a Ditto before sending a DM.')
       }
 
       if (recipientId === sessionProfile.id) {
-        throw new Error('Choose another builder for a DM.')
+        throw new Error('Choose another Ditto for a DM.')
       }
 
       if (!messageText) {

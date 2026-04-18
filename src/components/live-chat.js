@@ -4,10 +4,28 @@ import { getFeaturedBadge } from '../utils/profile.js'
 import { readStorage, writeStorage } from '../utils/storage.js'
 
 var CHAT_UI_KEY = 'pokobuilds3d:chat-ui'
+var FREEFORM_MIN_WIDTH = 320
+var FREEFORM_MIN_HEIGHT = 380
+
+function isFiniteNumber(value) {
+  return Number.isFinite(Number(value))
+}
+
+function normalizeLayoutMode(value) {
+  var normalized = String(value || '').trim().toLowerCase()
+
+  if (normalized === 'freeform' || normalized === 'popout') {
+    return 'freeform'
+  }
+
+  return 'default'
+}
 
 function loadChatUiState() {
   var saved = readStorage(CHAT_UI_KEY, {})
   var legacyModeKeys = ['sizeMode', 'layoutMode', 'windowMode', 'chatMode']
+  var legacyLayoutValue =
+    saved.layout || saved.layoutMode || saved.sizeMode || saved.windowMode || saved.chatMode
   var hasLegacyMode = legacyModeKeys.some(function (key) {
     return Object.prototype.hasOwnProperty.call(saved, key)
   })
@@ -15,7 +33,12 @@ function loadChatUiState() {
     collapsed: Boolean(saved.collapsed),
     side: saved.side === 'left' ? 'left' : 'right',
     mode: saved.mode === 'direct' ? 'direct' : 'community',
-    directRecipientId: String(saved.directRecipientId || '').trim()
+    directRecipientId: String(saved.directRecipientId || '').trim(),
+    layout: normalizeLayoutMode(legacyLayoutValue),
+    freeformX: isFiniteNumber(saved.freeformX) ? Number(saved.freeformX) : null,
+    freeformY: isFiniteNumber(saved.freeformY) ? Number(saved.freeformY) : null,
+    freeformWidth: isFiniteNumber(saved.freeformWidth) ? Number(saved.freeformWidth) : null,
+    freeformHeight: isFiniteNumber(saved.freeformHeight) ? Number(saved.freeformHeight) : null
   }
 
   if (hasLegacyMode) {
@@ -61,7 +84,7 @@ function renderBadge(badge) {
 
 function renderRecipientOptions(profiles, selectedValue) {
   return (
-    '<option value="">Choose a builder</option>' +
+    '<option value="">Choose a Ditto</option>' +
     (profiles || [])
       .map(function (profile) {
         return (
@@ -75,6 +98,37 @@ function renderRecipientOptions(profiles, selectedValue) {
         )
       })
       .join('')
+  )
+}
+
+function renderConversationList(conversations, selectedRecipientId) {
+  if (!conversations.length) {
+    return '<div class="live-chat__conversation-empty muted">No DMs yet.</div>'
+  }
+
+  return (
+    '<div class="live-chat__conversation-list">' +
+    conversations
+      .map(function (conversation) {
+        return (
+          '<button class="live-chat__conversation-button' +
+          (conversation.profile.id === selectedRecipientId ? ' is-active' : '') +
+          '" type="button" data-direct-recipient-id="' +
+          escapeHtml(conversation.profile.id) +
+          '">' +
+          '<div class="live-chat__conversation-meta"><strong class="live-chat__conversation-name">' +
+          escapeHtml(conversation.profile.displayName || conversation.profile.username || 'Ditto') +
+          '</strong><span class="live-chat__conversation-time">' +
+          escapeHtml(formatTime(conversation.lastMessageAt)) +
+          '</span></div>' +
+          '<p class="live-chat__conversation-preview">' +
+          escapeHtml(conversation.lastMessage || '') +
+          '</p>' +
+          '</button>'
+        )
+      })
+      .join('') +
+    '</div>'
   )
 }
 
@@ -121,7 +175,7 @@ export function renderLiveChat(session) {
   var hasSession = Boolean(session?.profile)
   var composePlaceholder = hasSession
     ? uiState.mode === 'direct'
-      ? 'Choose a builder above to start a direct message.'
+      ? 'Send a private message.'
       : 'Share a quick build update or ask for help.'
     : uiState.mode === 'direct'
       ? 'Sign in to use direct messages.'
@@ -134,7 +188,7 @@ export function renderLiveChat(session) {
     '">' +
     '<div class="live-chat__shell">' +
     '<div class="live-chat__header">' +
-    '<div class="stack live-chat__heading"><span class="eyebrow">Chat</span><strong>Builder Log</strong></div>' +
+    '<div class="stack live-chat__heading"><strong>Ditto Diary Entries</strong></div>' +
     '<div class="button-row">' +
     '<button class="button button-ghost live-chat__header-button" id="live-chat-settings-toggle" type="button">Settings</button>' +
     '<button class="button button-secondary live-chat__header-button" id="live-chat-collapse" type="button">' +
@@ -146,12 +200,21 @@ export function renderLiveChat(session) {
     (uiState.collapsed ? ' hidden' : '') +
     '>' +
     '<div id="live-chat-settings" class="live-chat__settings inset-panel" hidden>' +
-    '<label class="dropdown-field">Snap side<select id="live-chat-side" name="liveChatSide"><option value="right"' +
+    '<label class="dropdown-field">View mode<select id="live-chat-layout" name="liveChatLayout"><option value="default"' +
+    (uiState.layout === 'default' ? ' selected' : '') +
+    '>Default</option><option value="freeform"' +
+    (uiState.layout === 'freeform' ? ' selected' : '') +
+    '>Freeform</option></select></label>' +
+    '<p class="muted compact-help">Default docks the chat to an edge. Freeform lets you drag and resize it.</p>' +
+    '<div id="live-chat-snap-setting"' +
+    (uiState.layout === 'default' ? '' : ' hidden') +
+    '><label class="dropdown-field">Snap side<select id="live-chat-side" name="liveChatSide"><option value="right"' +
     (uiState.side === 'right' ? ' selected' : '') +
     '>Right</option><option value="left"' +
     (uiState.side === 'left' ? ' selected' : '') +
     '>Left</option></select></label>' +
     '<p class="muted compact-help">Choose where the live chat docks when it is expanded.</p>' +
+    '</div>' +
     '</div>' +
     '<div class="live-chat__tabs">' +
     '<button class="button button-ghost live-chat__tab' +
@@ -164,15 +227,17 @@ export function renderLiveChat(session) {
     '<div id="live-chat-direct-controls" class="live-chat__direct-controls inset-panel"' +
     (uiState.mode === 'direct' ? '' : ' hidden') +
     '>' +
-    '<label class="dropdown-field">Message builder<select id="live-chat-recipient" name="liveChatRecipient"><option value="">' +
-    escapeHtml(hasSession ? 'Loading builders...' : 'Sign in to use DMs') +
+    '<label class="dropdown-field">Message Ditto<select id="live-chat-recipient" name="liveChatRecipient"><option value="">' +
+    escapeHtml(hasSession ? 'Choose a Ditto' : 'Sign in to use DMs') +
     '</option></select></label>' +
     '<p class="muted compact-help">DMs stay private and do not expire.</p>' +
     '</div>' +
     '<div id="live-chat-messages" class="live-chat__messages"><div class="live-chat__empty muted">Loading chat...</div></div>' +
-    '<form id="live-chat-form" class="live-chat__composer">' +
+    '<form id="live-chat-form" class="live-chat__composer"' +
+    (uiState.mode === 'direct' && !uiState.directRecipientId ? ' hidden' : '') +
+    '>' +
     '<label class="live-chat__label"><span id="live-chat-compose-label">' +
-    (uiState.mode === 'direct' ? 'Direct message' : 'Message') +
+    (uiState.mode === 'direct' ? 'Message Ditto' : 'Message') +
     '</span><textarea id="live-chat-input" rows="3" placeholder="' +
     escapeHtml(composePlaceholder) +
     '"' +
@@ -182,7 +247,7 @@ export function renderLiveChat(session) {
     escapeHtml(
       hasSession
         ? uiState.mode === 'direct'
-          ? 'Pick a builder to open DMs.'
+          ? ''
           : 'Posting as ' + (session.profile.displayName || session.profile.username)
         : 'Read only until you sign in.'
     ) +
@@ -212,8 +277,10 @@ export function mountLiveChat(options) {
   var form = document.getElementById('live-chat-form')
   var input = document.getElementById('live-chat-input')
   var settingsPanel = document.getElementById('live-chat-settings')
+  var snapSetting = document.getElementById('live-chat-snap-setting')
   var collapseButton = document.getElementById('live-chat-collapse')
   var settingsButton = document.getElementById('live-chat-settings-toggle')
+  var layoutSelect = document.getElementById('live-chat-layout')
   var sideSelect = document.getElementById('live-chat-side')
   var communityTab = document.getElementById('live-chat-tab-community')
   var directTab = document.getElementById('live-chat-tab-direct')
@@ -227,7 +294,80 @@ export function mountLiveChat(options) {
   var chatCleanup = null
   var directCleanup = null
   var directProfiles = []
+  var directConversations = []
   var refreshToken = 0
+  var dragCleanup = null
+  var resizeCleanup = null
+
+  function viewportBounds() {
+    return {
+      minX: 8,
+      minY: 72,
+      maxX: Math.max(8, window.innerWidth - 8),
+      maxY: Math.max(72, window.innerHeight - 8)
+    }
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max)
+  }
+
+  function captureFreeformRect() {
+    var rect = root.getBoundingClientRect()
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height
+    }
+  }
+
+  function persistFreeformRect() {
+    if (uiState.layout !== 'freeform' || uiState.collapsed) {
+      return
+    }
+
+    var rect = captureFreeformRect()
+    var bounds = viewportBounds()
+    var width = clamp(rect.width, FREEFORM_MIN_WIDTH, bounds.maxX - bounds.minX)
+    var height = clamp(rect.height, FREEFORM_MIN_HEIGHT, bounds.maxY - bounds.minY)
+
+    uiState.freeformWidth = width
+    uiState.freeformHeight = height
+    uiState.freeformX = clamp(rect.x, bounds.minX, bounds.maxX - width)
+    uiState.freeformY = clamp(rect.y, bounds.minY, bounds.maxY - height)
+    saveChatUiState(uiState)
+  }
+
+  function ensureFreeformRect() {
+    var currentRect = captureFreeformRect()
+    var bounds = viewportBounds()
+    var width = clamp(
+      isFiniteNumber(uiState.freeformWidth) ? Number(uiState.freeformWidth) : currentRect.width,
+      FREEFORM_MIN_WIDTH,
+      bounds.maxX - bounds.minX
+    )
+    var height = clamp(
+      isFiniteNumber(uiState.freeformHeight) ? Number(uiState.freeformHeight) : currentRect.height,
+      FREEFORM_MIN_HEIGHT,
+      bounds.maxY - bounds.minY
+    )
+    var x = clamp(
+      isFiniteNumber(uiState.freeformX) ? Number(uiState.freeformX) : currentRect.left,
+      bounds.minX,
+      bounds.maxX - width
+    )
+    var y = clamp(
+      isFiniteNumber(uiState.freeformY) ? Number(uiState.freeformY) : currentRect.top,
+      bounds.minY,
+      bounds.maxY - height
+    )
+
+    uiState.freeformWidth = width
+    uiState.freeformHeight = height
+    uiState.freeformX = x
+    uiState.freeformY = y
+  }
 
   function getRecipientId() {
     return recipientSelect?.value || uiState.directRecipientId || ''
@@ -235,6 +375,14 @@ export function mountLiveChat(options) {
 
   function getComposeName() {
     return session?.profile?.displayName || session?.profile?.username || 'Builder'
+  }
+
+  function getSelectedRecipientProfile() {
+    return (
+      directProfiles.find(function (profile) {
+        return profile.id === getRecipientId()
+      }) || null
+    )
   }
 
   function getEmptyLabel() {
@@ -247,18 +395,72 @@ export function mountLiveChat(options) {
     }
 
     if (!getRecipientId()) {
-      return 'Choose a builder to open your DMs.'
+      return 'Choose a Ditto to open your DMs.'
     }
 
     return 'No direct messages yet. Say hello.'
+  }
+
+  function bindConversationButtons() {
+    Array.from(messagesNode.querySelectorAll('[data-direct-recipient-id]')).forEach(function (button) {
+      button.addEventListener('click', function () {
+        uiState.directRecipientId = button.dataset.directRecipientId || ''
+
+        if (recipientSelect) {
+          recipientSelect.value = uiState.directRecipientId
+        }
+
+        saveChatUiState(uiState)
+        syncComposerState()
+        refreshMessages()
+      })
+    })
+  }
+
+  function renderConversationInbox() {
+    if (uiState.mode !== 'direct' || getRecipientId()) {
+      return false
+    }
+
+    if (!session?.profile) {
+      messagesNode.innerHTML = '<div class="live-chat__conversation-empty muted">Sign in to use DMs.</div>'
+      return true
+    }
+
+    messagesNode.innerHTML = renderConversationList(directConversations, uiState.directRecipientId)
+    bindConversationButtons()
+    return true
   }
 
   function applyUiState() {
     root.classList.toggle('is-collapsed', uiState.collapsed)
     root.classList.toggle('live-chat--left', uiState.side === 'left')
     root.classList.toggle('live-chat--right', uiState.side === 'right')
+    root.classList.toggle('live-chat--freeform', uiState.layout === 'freeform')
+    root.classList.toggle('live-chat--default', uiState.layout !== 'freeform')
+
+    if (uiState.layout === 'freeform') {
+      ensureFreeformRect()
+      root.style.left = uiState.freeformX + 'px'
+      root.style.top = uiState.freeformY + 'px'
+      root.style.right = 'auto'
+      root.style.bottom = uiState.collapsed ? '1rem' : 'auto'
+      root.style.width = uiState.freeformWidth + 'px'
+      root.style.height = uiState.collapsed ? 'auto' : uiState.freeformHeight + 'px'
+    } else {
+      root.style.left = ''
+      root.style.top = ''
+      root.style.right = ''
+      root.style.bottom = ''
+      root.style.width = ''
+      root.style.height = ''
+    }
+
     body.hidden = uiState.collapsed
     settingsPanel.hidden = uiState.collapsed || !settingsOpen
+    if (snapSetting) {
+      snapSetting.hidden = uiState.layout !== 'default'
+    }
     directControls.hidden = uiState.collapsed || uiState.mode !== 'direct'
     collapseButton.textContent = uiState.collapsed ? 'Open' : 'Collapse'
     communityTab.classList.toggle('is-active', uiState.mode === 'community')
@@ -269,8 +471,10 @@ export function mountLiveChat(options) {
     var hasSession = Boolean(session?.profile)
     var isDirect = uiState.mode === 'direct'
     var hasRecipient = Boolean(getRecipientId())
+    var selectedRecipient = getSelectedRecipientProfile()
 
-    composeLabel.textContent = isDirect ? 'Direct message' : 'Message'
+    composeLabel.textContent = isDirect ? 'Message Ditto' : 'Message'
+    form.hidden = isDirect && !hasRecipient
     input.disabled = !hasSession || (isDirect && !hasRecipient)
     input.placeholder = !hasSession
       ? isDirect
@@ -279,14 +483,16 @@ export function mountLiveChat(options) {
       : isDirect
         ? hasRecipient
           ? 'Send a private message.'
-          : 'Choose a builder above to start a direct message.'
+          : ''
         : 'Share a quick build update or ask for help.'
     contextNode.textContent = !hasSession
       ? 'Read only until you sign in.'
       : isDirect
         ? hasRecipient
-          ? 'Only you and this builder can read these messages.'
-          : 'Pick a builder to open DMs.'
+          ? 'Chatting with ' +
+            (selectedRecipient?.displayName || selectedRecipient?.username || 'Ditto') +
+            '.'
+          : ''
         : 'Posting as ' + getComposeName()
     submitButton.textContent = hasSession ? 'Send' : 'Sign In'
     submitButton.disabled = hasSession ? isDirect && !hasRecipient : false
@@ -353,6 +559,19 @@ export function mountLiveChat(options) {
     }
   }
 
+  async function loadDirectConversations() {
+    if (!session?.profile || typeof api.listDirectConversations !== 'function') {
+      directConversations = []
+      return
+    }
+
+    try {
+      directConversations = await api.listDirectConversations(session.profile)
+    } catch (error) {
+      directConversations = []
+    }
+  }
+
   async function refreshMessages() {
     var token = (refreshToken += 1)
 
@@ -362,16 +581,35 @@ export function mountLiveChat(options) {
       if (uiState.mode === 'community') {
         messages = await api.listChatMessages()
       } else if (!session?.profile) {
-        messages = []
+        await loadDirectConversations()
+
+        if (token !== refreshToken) {
+          return
+        }
+
+        renderConversationInbox()
+        return
       } else if (!getRecipientId()) {
-        messages = []
+        await loadDirectConversations()
+
+        if (token !== refreshToken) {
+          return
+        }
+
+        renderConversationInbox()
+        return
       } else if (typeof api.listDirectMessages !== 'function') {
         throw new Error('Direct messages are not available right now.')
       } else {
+        await loadDirectConversations()
         messages = await api.listDirectMessages(getRecipientId(), session.profile)
       }
 
       if (token !== refreshToken) {
+        return
+      }
+
+      if (renderConversationInbox()) {
         return
       }
 
@@ -407,6 +645,21 @@ export function mountLiveChat(options) {
 
   sideSelect?.addEventListener('change', function () {
     uiState.side = sideSelect.value === 'left' ? 'left' : 'right'
+    saveChatUiState(uiState)
+    applyUiState()
+  })
+
+  layoutSelect?.addEventListener('change', function () {
+    uiState.layout = normalizeLayoutMode(layoutSelect.value)
+
+    if (uiState.layout === 'freeform') {
+      var rect = captureFreeformRect()
+      uiState.freeformX = rect.left
+      uiState.freeformY = rect.top
+      uiState.freeformWidth = rect.width
+      uiState.freeformHeight = rect.height
+    }
+
     saveChatUiState(uiState)
     applyUiState()
   })
@@ -453,7 +706,7 @@ export function mountLiveChat(options) {
     try {
       if (uiState.mode === 'direct') {
         if (!getRecipientId()) {
-          showToast('Choose a builder before sending a DM.', 'error')
+          showToast('Choose a Ditto before sending a DM.', 'error')
           return
         }
 
@@ -467,16 +720,102 @@ export function mountLiveChat(options) {
       }
 
       input.value = ''
+      await loadDirectConversations()
       await refreshMessages()
     } catch (error) {
       showToast(error.message, 'error')
     }
   })
 
+  function handleWindowResize() {
+    if (uiState.layout !== 'freeform') {
+      return
+    }
+
+    ensureFreeformRect()
+    applyUiState()
+    saveChatUiState(uiState)
+  }
+
+  function setupFreeformDrag() {
+    var header = root.querySelector('.live-chat__header')
+
+    if (!header) {
+      return function () {}
+    }
+
+    function onMouseDown(event) {
+      if (
+        uiState.layout !== 'freeform' ||
+        uiState.collapsed ||
+        event.button !== 0 ||
+        event.target.closest('button, a, input, select, textarea, label')
+      ) {
+        return
+      }
+
+      event.preventDefault()
+      ensureFreeformRect()
+
+      var startX = event.clientX
+      var startY = event.clientY
+      var originX = uiState.freeformX
+      var originY = uiState.freeformY
+
+      function onMouseMove(moveEvent) {
+        var bounds = viewportBounds()
+        uiState.freeformX = clamp(
+          originX + (moveEvent.clientX - startX),
+          bounds.minX,
+          bounds.maxX - uiState.freeformWidth
+        )
+        uiState.freeformY = clamp(
+          originY + (moveEvent.clientY - startY),
+          bounds.minY,
+          bounds.maxY - uiState.freeformHeight
+        )
+        applyUiState()
+      }
+
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+        saveChatUiState(uiState)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    }
+
+    header.addEventListener('mousedown', onMouseDown)
+
+    return function () {
+      header.removeEventListener('mousedown', onMouseDown)
+    }
+  }
+
+  function setupFreeformResizePersistence() {
+    function onMouseUp() {
+      persistFreeformRect()
+    }
+
+    document.addEventListener('mouseup', onMouseUp)
+    window.addEventListener('resize', handleWindowResize)
+
+    return function () {
+      document.removeEventListener('mouseup', onMouseUp)
+      window.removeEventListener('resize', handleWindowResize)
+    }
+  }
+
   applyUiState()
   syncComposerState()
+  dragCleanup = setupFreeformDrag()
+  resizeCleanup = setupFreeformResizePersistence()
   loadRecipients().then(function () {
-    refreshMessages()
+    loadDirectConversations().then(function () {
+      refreshMessages()
+    })
   })
 
   if (typeof api.subscribeToChatMessages === 'function') {
@@ -489,9 +828,11 @@ export function mountLiveChat(options) {
 
   if (session?.profile && typeof api.subscribeToDirectMessages === 'function') {
     directCleanup = api.subscribeToDirectMessages(session.profile.id, function () {
-      if (uiState.mode === 'direct') {
-        refreshMessages()
-      }
+      loadDirectConversations().then(function () {
+        if (uiState.mode === 'direct') {
+          refreshMessages()
+        }
+      })
     })
   }
 
@@ -502,6 +843,14 @@ export function mountLiveChat(options) {
 
     if (directCleanup) {
       directCleanup()
+    }
+
+    if (dragCleanup) {
+      dragCleanup()
+    }
+
+    if (resizeCleanup) {
+      resizeCleanup()
     }
   }
 }

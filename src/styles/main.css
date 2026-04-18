@@ -771,6 +771,15 @@ p {
   left: 1rem;
 }
 
+.live-chat--freeform {
+  resize: both;
+  overflow: hidden;
+  min-width: 20rem;
+  min-height: 23.75rem;
+  max-width: calc(100vw - 1rem);
+  max-height: calc(100vh - 1rem);
+}
+
 .live-chat__shell {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -792,12 +801,17 @@ p {
   border-bottom: 1px solid rgba(183, 172, 149, 0.24);
 }
 
+.live-chat--freeform .live-chat__header {
+  cursor: move;
+}
+
 .live-chat__heading {
   gap: 0.35rem;
 }
 
 .live-chat__header-button {
   padding: 0.58rem 0.9rem;
+  cursor: pointer;
 }
 
 .live-chat__body {
@@ -844,6 +858,62 @@ p {
   gap: 0.75rem;
   border: 1px solid rgba(88, 166, 255, 0.18);
   background: rgba(15, 21, 28, 0.92);
+}
+
+.live-chat__conversation-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.live-chat__conversation-button {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(88, 166, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(10, 14, 20, 0.84);
+  color: inherit;
+  text-align: left;
+}
+
+.live-chat__conversation-button.is-active,
+.live-chat__conversation-button:hover {
+  border-color: rgba(88, 166, 255, 0.34);
+  background: rgba(14, 20, 28, 0.96);
+}
+
+.live-chat__conversation-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.live-chat__conversation-name {
+  color: #f0f6fc;
+  font-size: 0.88rem;
+}
+
+.live-chat__conversation-time {
+  color: #8b949e;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.live-chat__conversation-preview {
+  margin: 0;
+  color: #8b949e;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-chat__conversation-empty {
+  padding: 0.35rem 0.1rem;
+  font-size: 0.82rem;
 }
 
 .live-chat__messages {

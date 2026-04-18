@@ -710,6 +710,56 @@ export function createLocalApi() {
           return decorateDirectMessage(message, profiles)
         })
     },
+    async listDirectConversations(sessionProfile) {
+      if (!sessionProfile) {
+        throw new Error('Sign in to use direct messages.')
+      }
+
+      var profiles = await this.listProfiles()
+      var messages = readLocalCollection(STORAGE_KEYS.directMessages)
+      var latestByProfile = new Map()
+
+      messages.forEach(function (message) {
+        var partnerId = ''
+
+        if (message.senderId === sessionProfile.id) {
+          partnerId = message.recipientId
+        } else if (message.recipientId === sessionProfile.id) {
+          partnerId = message.senderId
+        }
+
+        if (!partnerId) {
+          return
+        }
+
+        var previous = latestByProfile.get(partnerId)
+
+        if (!previous || new Date(message.createdAt) > new Date(previous.createdAt)) {
+          latestByProfile.set(partnerId, message)
+        }
+      })
+
+      return Array.from(latestByProfile.entries())
+        .map(function (entry) {
+          var profile = profiles.find(function (candidate) {
+            return candidate.id === entry[0]
+          })
+
+          if (!profile) {
+            return null
+          }
+
+          return {
+            profile: profile,
+            lastMessage: String(entry[1].text || '').trim(),
+            lastMessageAt: entry[1].createdAt
+          }
+        })
+        .filter(Boolean)
+        .sort(function (left, right) {
+          return new Date(right.lastMessageAt) - new Date(left.lastMessageAt)
+        })
+    },
     async sendDirectMessage(recipientId, text, sessionProfile) {
       var messageText = String(text || '').trim()
       var profiles = await this.listProfiles()
@@ -719,11 +769,11 @@ export function createLocalApi() {
       }
 
       if (!recipientId) {
-        throw new Error('Choose a builder before sending a DM.')
+        throw new Error('Choose a Ditto before sending a DM.')
       }
 
       if (recipientId === sessionProfile.id) {
-        throw new Error('Choose another builder for a DM.')
+        throw new Error('Choose another Ditto for a DM.')
       }
 
       if (
@@ -731,7 +781,7 @@ export function createLocalApi() {
           return profile.id === recipientId
         })
       ) {
-        throw new Error('That builder could not be found.')
+        throw new Error('That Ditto could not be found.')
       }
 
       if (!messageText) {

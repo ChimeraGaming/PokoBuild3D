@@ -11,6 +11,8 @@
 - Pinned the chat composer to the bottom of the dock and flattened messages into log lines.
 - Tightened the top nav so the Other PokoSites menu stays visible in smaller header widths.
 - Replaced the header settings cog with the Settings image icon.
+- Restored the chat view mode setting with Default and Freeform only.
+- Cleaned up DMs with Ditto naming, clickable conversation threads, and no composer until a chat is selected.
 
 ## 1.2
 
