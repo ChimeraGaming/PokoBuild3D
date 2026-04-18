@@ -195,7 +195,7 @@ export var profilePage = {
       '</div>' +
       '<div class="profile-actions">' +
       (isOwnProfile
-        ? '<a class="button button-primary" href="#/profile/edit">Edit Profile</a><a class="button button-secondary" href="#/dashboard">My Builds</a><button class="button button-ghost" id="sign-out-button" type="button">Sign Out</button>'
+        ? '<a class="button button-primary" href="#/profile/edit">Edit Profile</a><a class="button button-secondary" href="#/dashboard">My Builds</a><button class="button button-ghost" id="profile-open-achievements" type="button">Achievements</button><button class="button button-ghost" id="sign-out-button" type="button">Sign Out</button>'
         : '') +
       '</div>' +
       '</div>' +
@@ -222,7 +222,7 @@ export var profilePage = {
           '</form>' +
           '</section>'
         : '') +
-      '<section class="card stack">' +
+      '<section class="card stack" id="profile-progress-section">' +
       '<div class="split-row"><div><span class="eyebrow">Profile tabs</span><h2>Progress</h2></div></div>' +
       '<div class="profile-section-tabs">' +
       '<button class="button ' +
@@ -259,6 +259,8 @@ export var profilePage = {
   },
   async afterRender(context) {
     var signOutButton = document.getElementById('sign-out-button')
+    var achievementsButton = document.getElementById('profile-open-achievements')
+    var progressSection = document.getElementById('profile-progress-section')
     var specialTagsForm = document.getElementById('special-tags-form')
     var specialTagsSelection = document.getElementById('special-tags-selection')
     var tabButtons = Array.from(document.querySelectorAll('[data-profile-tab]'))
@@ -311,6 +313,13 @@ export var profilePage = {
         })
       })
       setActiveTab(normalizeProfileTab(readStorage(PROFILE_TAB_KEY, 'builds')))
+    }
+
+    if (achievementsButton) {
+      achievementsButton.addEventListener('click', function () {
+        setActiveTab('achievements')
+        progressSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
     }
 
     if (specialTagsForm) {

@@ -760,7 +760,7 @@ p {
   position: fixed;
   bottom: 1rem;
   z-index: 75;
-  --live-chat-font-size: 15px;
+  --live-chat-font-size: 24px;
 }
 
 .live-chat--default {
@@ -930,19 +930,19 @@ p {
 
 .live-chat__conversation-name {
   color: #f0f6fc;
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 1px), 31px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 1px), 31px);
 }
 
 .live-chat__conversation-time {
   color: #8b949e;
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 4px), 28px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 4px), 28px);
   white-space: nowrap;
 }
 
 .live-chat__conversation-preview {
   margin: 0;
   color: #8b949e;
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 2px), 30px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 2px), 30px);
   line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
@@ -951,7 +951,7 @@ p {
 
 .live-chat__conversation-empty {
   padding: 0.35rem 0.1rem;
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 2px), 30px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 2px), 30px);
 }
 
 .live-chat__messages {
@@ -981,7 +981,7 @@ p {
 .live-chat__line {
   margin: 0;
   font-family: 'Courier New', monospace;
-  font-size: var(--live-chat-font-size, 15px);
+  font-size: var(--live-chat-font-size, 24px);
   line-height: 1.35;
   color: #f0f6fc;
   white-space: pre-wrap;
@@ -1045,7 +1045,7 @@ p {
 .live-chat__time {
   color: #8b949e;
   padding-left: 0.05rem;
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 3px), 29px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 3px), 29px);
 }
 
 .live-chat__text {
@@ -1067,19 +1067,19 @@ p {
 
 .live-chat__composer-meta {
   align-items: center;
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 2px), 30px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 2px), 30px);
 }
 
 .live-chat__label {
   gap: 0.55rem;
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 1px), 31px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 1px), 31px);
 }
 
 .live-chat__composer textarea {
   min-height: 5rem;
   max-height: 11rem;
   resize: vertical;
-  font-size: var(--live-chat-font-size, 15px);
+  font-size: var(--live-chat-font-size, 24px);
   line-height: 1.45;
 }
 
@@ -1088,7 +1088,7 @@ p {
   border-radius: 6px;
   border: 1px dashed rgba(88, 166, 255, 0.24);
   background: rgba(7, 11, 16, 0.74);
-  font-size: clamp(10px, calc(var(--live-chat-font-size, 15px) - 1px), 31px);
+  font-size: clamp(10px, calc(var(--live-chat-font-size, 24px) - 1px), 31px);
 }
 
 .build-card {
@@ -1587,18 +1587,203 @@ p {
   align-items: start;
 }
 
+.editor-shell--wide {
+  width: min(1500px, calc(100% - 1.25rem));
+}
+
+.editor-page-header {
+  align-items: end;
+}
+
+.editor-page-copy {
+  gap: 0.6rem;
+  max-width: 54rem;
+}
+
+.editor-page-copy p,
+.editor-workspace-copy p {
+  margin: 0;
+}
+
+.editor-layout--wide {
+  grid-template-columns: minmax(0, 1.9fr) minmax(340px, 0.78fr);
+  align-items: start;
+}
+
 .editor-workspace {
   display: grid;
   gap: 1rem;
 }
 
+.editor-workspace-header {
+  align-items: flex-start;
+}
+
+.editor-workspace-copy {
+  gap: 0.4rem;
+}
+
+.editor-control-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.editor-toolbar--workspace {
+  gap: 0.65rem;
+}
+
+.editor-mode-toggle.is-active {
+  box-shadow: 0 10px 24px rgba(31, 111, 235, 0.22);
+}
+
+.editor-help-card {
+  gap: 1rem;
+  background:
+    linear-gradient(160deg, rgba(28, 36, 48, 0.96), rgba(16, 23, 33, 0.94)),
+    var(--surface);
+}
+
+.editor-help-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+.editor-help-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+}
+
+.editor-shortcut-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.editor-shortcut-chip {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(88, 166, 255, 0.18);
+  background: rgba(12, 17, 24, 0.86);
+}
+
+.editor-shortcut-chip strong {
+  color: #f0f6fc;
+  font-size: 1.05rem;
+}
+
+.editor-shortcut-chip span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.editor-canvas-shell {
+  position: relative;
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border-radius: calc(var(--radius-lg) - 6px);
+  border: 1px solid rgba(88, 166, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(24, 31, 41, 0.98), rgba(12, 17, 24, 0.98)),
+    var(--surface);
+}
+
+.editor-workspace .editor-canvas {
+  min-height: clamp(620px, 72vh, 920px);
+  border: 1px solid rgba(88, 166, 255, 0.12);
+  background: linear-gradient(180deg, rgba(31, 39, 51, 0.98), rgba(10, 15, 22, 0.98));
+}
+
+.editor-canvas__surface {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: crosshair;
+}
+
+.editor-canvas__surface:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(88, 166, 255, 0.28);
+}
+
+.editor-canvas-hud {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.editor-hud-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(88, 166, 255, 0.16);
+  background: rgba(10, 15, 22, 0.84);
+  color: var(--muted);
+}
+
+.editor-hud-pill strong {
+  color: #f0f6fc;
+}
+
 .editor-sidebar {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
   position: sticky;
-  top: 6rem;
+  top: 5.5rem;
+}
+
+.editor-side-card {
+  gap: 0.85rem;
+}
+
+.editor-summary-stats {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.editor-actions-card .button-row {
+  justify-content: stretch;
+}
+
+.editor-actions-card .button {
+  flex: 1 1 12rem;
+  text-align: center;
 }
 
 .editor-readout {
   color: var(--muted);
+}
+
+.editor-footerbar--workspace {
+  justify-content: space-between;
+}
+
+.editor-canvas-shell.is-fullscreen,
+.editor-canvas-shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem 1rem 1.25rem;
+  border-radius: 0;
+  border: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
+  background: rgba(8, 12, 18, 0.99);
+}
+
+.editor-canvas-shell.is-fullscreen .editor-canvas,
+.editor-canvas-shell:fullscreen .editor-canvas {
+  min-height: 0;
+  height: 100%;
 }
 
 .filter-chip {
@@ -1994,6 +2179,12 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .editor-control-grid,
+  .editor-help-grid,
+  .editor-shortcut-grid {
+    grid-template-columns: 1fr;
+  }
+
   .feature-strip-item + .feature-strip-item {
     border-left: 0;
     border-top: 1px solid rgba(183, 172, 149, 0.32);
@@ -2046,6 +2237,18 @@ select {
   .viewer-canvas,
   .editor-canvas {
     min-height: 360px;
+  }
+
+  .editor-shell--wide {
+    width: min(100% - 1rem, 1500px);
+  }
+
+  .editor-workspace .editor-canvas {
+    min-height: 460px;
+  }
+
+  .editor-footerbar--workspace {
+    align-items: flex-start;
   }
 
   .data-table {

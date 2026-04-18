@@ -8,7 +8,7 @@ var FREEFORM_MIN_WIDTH = 320
 var FREEFORM_MIN_HEIGHT = 380
 var CHAT_TEXT_SIZE_MIN = 10
 var CHAT_TEXT_SIZE_MAX = 32
-var CHAT_TEXT_SIZE_DEFAULT = 15
+var CHAT_TEXT_SIZE_DEFAULT = 24
 
 function isFiniteNumber(value) {
   return Number.isFinite(Number(value))
