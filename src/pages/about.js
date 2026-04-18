@@ -27,6 +27,15 @@ export var aboutPage = {
       '</article>' +
       '</div>' +
       '<article class="card stack">' +
+      '<h2>Source</h2>' +
+      '<p>View the project files, deployment workflow, and ongoing updates on GitHub.</p>' +
+      '<div class="button-row">' +
+      '<a class="button button-primary" href="https://github.com/ChimeraGaming/PokoBuild3D" target="_blank" rel="noreferrer">GitHub Source</a>' +
+      '<a class="button button-secondary" href="https://github.com/ChimeraGaming/PokoBuild3D/issues" target="_blank" rel="noreferrer">Suggestions</a>' +
+      '<a class="button button-ghost" href="https://chimeragaming.github.io/PokoBuild3D/" target="_blank" rel="noreferrer">Live Site</a>' +
+      '</div>' +
+      '</article>' +
+      '<article class="card stack">' +
       '<h2>Backend mode</h2>' +
       '<p><strong>' +
       (context.api.backendMode === 'supabase' ? 'Supabase connected' : 'Local demo mode') +

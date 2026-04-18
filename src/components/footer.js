@@ -6,11 +6,14 @@ export function renderFooter() {
     '<h3>PokoBuild3D</h3>' +
     '<p>Cozy Pokopia schematics, layered viewer tools, and creator-friendly build workflows.</p>' +
     '</div>' +
+    '<div class="stack footer-actions">' +
     '<div class="footer-links">' +
     '<a href="#/catalog">Catalog</a>' +
     '<a href="#/create">Create</a>' +
     '<a href="#/favorites">Favorites</a>' +
     '<a href="#/about">About</a>' +
+    '</div>' +
+    '<a class="button button-secondary footer-suggestion-link" href="https://github.com/ChimeraGaming/PokoBuild3D/issues" target="_blank" rel="noreferrer">Suggestions</a>' +
     '</div>' +
     '</div>' +
     '</footer>'

@@ -2,7 +2,7 @@
 
 ## Live Site
 
-🟢[PokoBuild3D Site](https://chimeragaming.github.io/PokoBuild3D/)
+[PokoBuild3D Site](https://chimeragaming.github.io/PokoBuild3D/)
 
 ## What This Site Is
 

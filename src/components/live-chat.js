@@ -4,6 +4,7 @@ import { getProfileAvatar } from '../utils/profile.js'
 import { readStorage, writeStorage } from '../utils/storage.js'
 
 var CHAT_UI_KEY = 'pokobuilds3d:chat-ui'
+var CHAT_REFRESH_INTERVAL_MS = 15000
 
 function loadChatUiState() {
   var saved = readStorage(CHAT_UI_KEY, {})
@@ -127,6 +128,7 @@ export function mountLiveChat(options) {
   var messagesNode = document.getElementById('live-chat-messages')
   var form = document.getElementById('live-chat-form')
   var input = document.getElementById('live-chat-input')
+  var submitButton = form?.querySelector('button[type="submit"]')
   var settingsPanel = document.getElementById('live-chat-settings')
   var collapseButton = document.getElementById('live-chat-collapse')
   var settingsButton = document.getElementById('live-chat-settings-toggle')
@@ -134,6 +136,8 @@ export function mountLiveChat(options) {
   var uiState = loadChatUiState()
   var settingsOpen = false
   var subscriptionCleanup = null
+  var refreshIntervalId = null
+  var refreshInFlight = null
 
   function applyUiState() {
     root.classList.toggle('is-collapsed', uiState.collapsed)
@@ -144,15 +148,45 @@ export function mountLiveChat(options) {
     collapseButton.textContent = uiState.collapsed ? 'Open' : 'Collapse'
   }
 
-  async function refreshMessages() {
-    try {
-      var messages = await api.listChatMessages()
-      messagesNode.innerHTML = renderMessages(messages)
-      messagesNode.scrollTop = messagesNode.scrollHeight
-    } catch (error) {
-      messagesNode.innerHTML =
-        '<div class="live-chat__empty muted">Chat could not be loaded right now.</div>'
+  function shouldStickToBottom() {
+    return messagesNode.scrollHeight - messagesNode.scrollTop - messagesNode.clientHeight < 48
+  }
+
+  function setComposerBusy(isBusy) {
+    if (session?.profile && input) {
+      input.disabled = isBusy
     }
+
+    if (submitButton) {
+      submitButton.disabled = isBusy
+    }
+  }
+
+  async function refreshMessages(options) {
+    if (refreshInFlight) {
+      return refreshInFlight
+    }
+
+    var forceScroll = Boolean(options?.forceScroll)
+    var stickToBottom = forceScroll || shouldStickToBottom()
+
+    refreshInFlight = (async function () {
+      try {
+        var messages = await api.listChatMessages()
+        messagesNode.innerHTML = renderMessages(messages)
+
+        if (stickToBottom) {
+          messagesNode.scrollTop = messagesNode.scrollHeight
+        }
+      } catch (error) {
+        messagesNode.innerHTML =
+          '<div class="live-chat__empty muted">Chat could not be loaded right now.</div>'
+      } finally {
+        refreshInFlight = null
+      }
+    })()
+
+    return refreshInFlight
   }
 
   settingsButton.addEventListener('click', function () {
@@ -184,24 +218,39 @@ export function mountLiveChat(options) {
     }
 
     try {
+      setComposerBusy(true)
       await api.sendChatMessage(input.value, session.profile)
       input.value = ''
-      await refreshMessages()
+      await refreshMessages({ forceScroll: true })
     } catch (error) {
       showToast(error.message, 'error')
+    } finally {
+      setComposerBusy(false)
     }
   })
 
   applyUiState()
-  refreshMessages()
+  refreshMessages({ forceScroll: true })
+
+  refreshIntervalId = window.setInterval(function () {
+    refreshMessages()
+  }, CHAT_REFRESH_INTERVAL_MS)
 
   if (typeof api.subscribeToChatMessages === 'function') {
-    subscriptionCleanup = api.subscribeToChatMessages(function () {
-      refreshMessages()
-    })
+    try {
+      subscriptionCleanup = api.subscribeToChatMessages(function () {
+        refreshMessages()
+      })
+    } catch (error) {
+      subscriptionCleanup = null
+    }
   }
 
   return function cleanup() {
+    if (refreshIntervalId) {
+      window.clearInterval(refreshIntervalId)
+    }
+
     if (subscriptionCleanup) {
       subscriptionCleanup()
     }

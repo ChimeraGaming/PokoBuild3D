@@ -29,21 +29,10 @@ function createGuestProgressKey() {
   return 'guest-local'
 }
 
-function seedChatMessages() {
-  return [
-    {
-      id: 'chat-seed-1',
-      userId: 'profile-elm',
-      text: 'Welcome to the builder chat. Share where your latest build is going and what materials are slowing you down.',
-      createdAt: '2026-04-15T18:20:00.000Z'
-    },
-    {
-      id: 'chat-seed-2',
-      userId: 'profile-wren',
-      text: 'If you are posting an online creation, remember to credit the original owner in the tags before you publish.',
-      createdAt: '2026-04-15T18:24:00.000Z'
-    }
-  ]
+function stripSeededChatMessages(messages) {
+  return (messages || []).filter(function (message) {
+    return message?.id !== 'chat-seed-1' && message?.id !== 'chat-seed-2'
+  })
 }
 
 export function ensureLocalSeed() {
@@ -78,8 +67,16 @@ export function ensureLocalSeed() {
     writeStorage(STORAGE_KEYS.progress, [])
   }
 
-  if (!readStorage(STORAGE_KEYS.chatMessages, null)) {
-    writeStorage(STORAGE_KEYS.chatMessages, seedChatMessages())
+  var storedChatMessages = readStorage(STORAGE_KEYS.chatMessages, null)
+
+  if (!storedChatMessages) {
+    writeStorage(STORAGE_KEYS.chatMessages, [])
+  } else {
+    var cleanedChatMessages = stripSeededChatMessages(storedChatMessages)
+
+    if (cleanedChatMessages.length !== storedChatMessages.length) {
+      writeStorage(STORAGE_KEYS.chatMessages, cleanedChatMessages)
+    }
   }
 }
 

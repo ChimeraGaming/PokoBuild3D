@@ -114,6 +114,67 @@ function galleryHeading(has3DModel, assetKind) {
   return 'Picture gallery'
 }
 
+function galleryLabel(assetKind, index) {
+  if (assetKind === 'model') {
+    return index === 0 ? 'Reference' : 'Step ' + index
+  }
+
+  if (assetKind === 'tips') {
+    return index === 0 ? 'Main guide image' : 'Guide image ' + (index + 1)
+  }
+
+  if (assetKind === 'real3d') {
+    return index === 0 ? 'Main creation photo' : 'Creation photo ' + (index + 1)
+  }
+
+  return index === 0 ? 'Main picture' : 'Picture ' + (index + 1)
+}
+
+function buildGalleryEntries(images, assetKind) {
+  var uniqueUrls = []
+
+  ;(images || []).forEach(function (image) {
+    var imageUrl = typeof image === 'string' ? image : image?.imageUrl
+    var normalizedUrl = String(imageUrl || '').trim()
+
+    if (normalizedUrl && !uniqueUrls.includes(normalizedUrl)) {
+      uniqueUrls.push(normalizedUrl)
+    }
+  })
+
+  return uniqueUrls.map(function (imageUrl, index) {
+    return {
+      id: 'gallery-' + index,
+      label: galleryLabel(assetKind, index),
+      imageUrl: imageUrl
+    }
+  })
+}
+
+function renderGalleryItems(images) {
+  if (!images.length) {
+    return '<p class="muted">No gallery images were uploaded for this post yet.</p>'
+  }
+
+  return images
+    .map(function (image) {
+      return (
+        '<button class="gallery-card" type="button" data-gallery-image="' +
+        image.imageUrl +
+        '" data-gallery-label="' +
+        image.label +
+        '"><img src="' +
+        image.imageUrl +
+        '" alt="' +
+        image.label +
+        '" /><span>' +
+        image.label +
+        '</span></button>'
+      )
+    })
+    .join('')
+}
+
 function readGuestProgress(buildId) {
   try {
     var data = JSON.parse(window.localStorage.getItem('pokobuilds3d:guest-progress') || '{}')
@@ -186,25 +247,7 @@ export var buildDetailPage = {
         '</aside>' +
         '</div>'
       : renderImagePostIntro(assetKind)
-    var galleryItems = build.imageGallery.length
-      ? build.imageGallery
-          .map(function (image) {
-            return (
-              '<button class="gallery-card" type="button" data-gallery-image="' +
-              image.imageUrl +
-              '" data-gallery-label="' +
-              image.label +
-              '"><img src="' +
-              image.imageUrl +
-              '" alt="' +
-              image.label +
-              '" /><span>' +
-              image.label +
-              '</span></button>'
-            )
-          })
-          .join('')
-      : '<p class="muted">No gallery images were uploaded for this post yet.</p>'
+    var galleryItems = renderGalleryItems(build.imageGallery)
 
     return (
       '<section class="shell page-stack">' +
@@ -297,7 +340,11 @@ export var buildDetailPage = {
       '<section class="card stack">' +
       '<div class="split-row"><div><h2>' +
       galleryHeading(has3DModel, assetKind) +
-      '</h2><p class="muted">Tap any image to inspect it.</p></div></div>' +
+      '</h2><p class="muted">Tap any image to inspect it.</p></div>' +
+      (canEditImage
+        ? '<div class="button-row"><button class="button button-ghost" id="add-build-photos" type="button">Add Photos</button><input id="add-build-photos-input" type="file" accept="image/*" multiple hidden /></div>'
+        : '') +
+      '</div>' +
       '<div class="gallery-grid">' +
       galleryItems +
       '</div>' +
@@ -313,9 +360,35 @@ export var buildDetailPage = {
     }
 
     var has3DModel = hasThreeDimensionalModel(build)
+    var assetKind = resolveBuildAssetKind(build)
     var deleteButton = document.getElementById('delete-build')
     var editImageButton = document.getElementById('edit-build-image')
     var editImageInput = document.getElementById('edit-build-image-input')
+    var addPhotosButton = document.getElementById('add-build-photos')
+    var addPhotosInput = document.getElementById('add-build-photos-input')
+    var galleryGrid = document.querySelector('.gallery-grid')
+    var detailThumbImage = document.querySelector('.detail-thumb-shell .detail-thumb')
+
+    function bindGalleryButtons() {
+      document.querySelectorAll('[data-gallery-image]').forEach(function (button) {
+        button.onclick = function () {
+          openImageModal(button.dataset.galleryLabel, button.dataset.galleryImage)
+        }
+      })
+    }
+
+    function syncGalleryUi(nextBuild) {
+      if (galleryGrid) {
+        galleryGrid.innerHTML = renderGalleryItems(nextBuild.imageGallery)
+      }
+
+      if (detailThumbImage) {
+        detailThumbImage.src = getBuildThumbnail(nextBuild)
+        detailThumbImage.alt = nextBuild.title
+      }
+
+      bindGalleryButtons()
+    }
 
     async function handleImageUpdate() {
       if (!context.session?.profile || context.session.profile.id !== build.userId) {
@@ -358,23 +431,7 @@ export var buildDetailPage = {
         )
 
         build = savedBuild
-
-        if (editImageButton) {
-          var nextThumb = getBuildThumbnail(savedBuild)
-          editImageButton.querySelector('img').src = nextThumb
-          editImageButton.querySelector('img').alt = savedBuild.title
-        }
-
-        document.querySelectorAll('[data-gallery-image]').forEach(function (button) {
-          if (button.dataset.galleryImage === previousThumbnailUrl) {
-            var nextThumb = getBuildThumbnail(savedBuild)
-            button.dataset.galleryImage = nextThumb
-            var image = button.querySelector('img')
-            if (image) {
-              image.src = nextThumb
-            }
-          }
-        })
+        syncGalleryUi(savedBuild)
 
         showToast('Post image updated.', 'success')
       } catch (error) {
@@ -386,6 +443,56 @@ export var buildDetailPage = {
         if (editImageInput) {
           editImageInput.value = ''
         }
+      }
+    }
+
+    async function handleGalleryAppend() {
+      if (!context.session?.profile || context.session.profile.id !== build.userId) {
+        return
+      }
+
+      if (!addPhotosInput?.files?.length) {
+        return
+      }
+
+      try {
+        if (addPhotosButton) {
+          addPhotosButton.disabled = true
+        }
+        var uploadedGallery = await context.api.uploadGalleryFiles(
+          addPhotosInput.files,
+          context.session.profile
+        )
+        var gallerySource = build.imageGallery || []
+
+        if (assetKind !== 'model' && build.thumbnailUrl) {
+          gallerySource = [{ imageUrl: build.thumbnailUrl }].concat(gallerySource)
+        }
+
+        var nextGallery = buildGalleryEntries(
+          gallerySource.concat(uploadedGallery),
+          assetKind
+        )
+        var savedBuild = await context.api.saveBuild(
+          {
+            ...build,
+            thumbnailUrl: build.thumbnailUrl || nextGallery[0]?.imageUrl || '',
+            imageGallery: nextGallery,
+            createdAt: build.createdAt
+          },
+          context.session.profile
+        )
+
+        build = savedBuild
+        syncGalleryUi(savedBuild)
+        showToast(uploadedGallery.length === 1 ? 'Photo added.' : 'Photos added.', 'success')
+      } catch (error) {
+        showToast(error.message, 'error')
+      } finally {
+        if (addPhotosButton) {
+          addPhotosButton.disabled = false
+        }
+        addPhotosInput.value = ''
       }
     }
 
@@ -425,14 +532,17 @@ export var buildDetailPage = {
       editImageInput.addEventListener('change', handleImageUpdate)
     }
 
+    if (addPhotosButton && addPhotosInput) {
+      addPhotosButton.addEventListener('click', function () {
+        addPhotosInput.click()
+      })
+      addPhotosInput.addEventListener('change', handleGalleryAppend)
+    }
+
+    bindGalleryButtons()
+
     if (!has3DModel) {
       var favoriteButton = document.getElementById('favorite-build')
-
-      document.querySelectorAll('[data-gallery-image]').forEach(function (button) {
-        button.addEventListener('click', function () {
-          openImageModal(button.dataset.galleryLabel, button.dataset.galleryImage)
-        })
-      })
 
       if (favoriteButton) {
         favoriteButton.addEventListener('click', async function () {
@@ -525,12 +635,6 @@ export var buildDetailPage = {
 
       gatheredMap[event.target.dataset.materialId] = event.target.checked
       saveProgress()
-    })
-
-    document.querySelectorAll('[data-gallery-image]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        openImageModal(button.dataset.galleryLabel, button.dataset.galleryImage)
-      })
     })
 
     document.getElementById('reset-camera').addEventListener('click', function () {

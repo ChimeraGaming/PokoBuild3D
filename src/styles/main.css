@@ -1239,6 +1239,14 @@ p {
   gap: 0.5rem;
 }
 
+.footer-actions {
+  align-content: start;
+}
+
+.footer-suggestion-link {
+  width: fit-content;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1311,12 +1319,32 @@ select,
 textarea {
   width: 100%;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(183, 172, 149, 0.56);
-  background: rgba(14, 18, 24, 0.96);
-  background-color: rgba(14, 18, 24, 0.96);
+  border: 1px solid var(--line);
+  background: #0d1117;
+  background-color: #0d1117;
   padding: 0.78rem 0.95rem;
-  color: #f0f6fc;
+  color: #c9d1d9;
   box-shadow: inset 0 1px 0 rgba(240, 246, 252, 0.03);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+label:has(> select) {
+  position: relative;
+}
+
+label:has(> select)::after {
+  content: '';
+  position: absolute;
+  right: 1rem;
+  bottom: 0.95rem;
+  width: 1rem;
+  height: 1rem;
+  background: url('../../Images/Site/select-caret.svg') center / 1rem no-repeat;
+  pointer-events: none;
+  opacity: 0.95;
 }
 
 select {
@@ -1324,10 +1352,12 @@ select {
   -webkit-appearance: none;
   -moz-appearance: none;
   padding-right: 2.9rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3 5.25L7 9.25L11 5.25' stroke='%235f6858' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 1rem center;
-  background-size: 0.95rem;
+  background-image: none;
+  line-height: 1.35;
+}
+
+select::-ms-expand {
+  display: none;
 }
 
 textarea {
@@ -1337,8 +1367,17 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  outline: 2px solid rgba(88, 166, 255, 0.22);
+  outline: 2px solid rgba(31, 111, 235, 0.34);
   border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px rgba(31, 111, 235, 0.15),
+    inset 0 1px 0 rgba(240, 246, 252, 0.03);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--line-strong);
 }
 
 input::placeholder,
@@ -1350,7 +1389,7 @@ textarea::placeholder {
 select option,
 select optgroup {
   background: #161b22;
-  color: #f0f6fc;
+  color: #c9d1d9;
 }
 
 input:-webkit-autofill,
@@ -1493,10 +1532,6 @@ textarea,
 
 .toast-error {
   background: #da3633;
-}
-
-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3 5.25L7 9.25L11 5.25' stroke='%238b949e' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 @keyframes spin {
